@@ -1,67 +1,68 @@
 # 🦒 Giraffe – Discord AI Bot
 
-Ein Discord-Bot mit KI-Integration, der auf **discord.js v14** basiert und über eine OpenAI-kompatible API (z. B. TensorX AI) mit LLMs kommuniziert.
+English · **[Deutsch](README.de.md)**
 
-## Funktionen
+A Discord bot with AI integration built on **discord.js v14**, communicating with LLMs via an OpenAI-compatible API (e.g. TensorX AI).
 
-- **`/ai <frage>`** – Stelle Fragen an ein KI-Modell (mit Kostenanzeige)
-- **`/ping`** – Einfacher Ping-Pong-Befehl
-- Nachrichten- & Voice-Tracking (täglich in SQLite gespeichert)
-- Cooldown-System für Commands
+## Features
 
-## Voraussetzungen
+- **`/ai <prompt>`** – Ask an AI model a question (with cost display)
+- **`/ping`** – Simple ping-pong command
+- Message & voice activity tracking (stored daily in SQLite)
+- Cooldown system for commands
 
-- [Node.js](https://nodejs.org/) (v18 oder neuer)
-- Ein Discord-Bot und dessen Token ([Discord Developer Portal](https://discord.com/developers/applications))
-- Ein API-Key eines OpenAI-kompatiblen Anbieters (z. B. [TensorX AI](https://tensorx.ai))
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18 or newer)
+- A Discord bot and its token ([Discord Developer Portal](https://discord.com/developers/applications))
+- An API key from an OpenAI-compatible provider (e.g. [TensorX AI](https://tensorx.ai))
 
 ## Installation
 
 ```bash
-# Repository klonen
+# Clone the repository
 git clone <repository-url>
 cd Giraffe
 
-# Abhängigkeiten installieren
+# Install dependencies
 npm install
 
-# Umgebungsvariablen konfigurieren
+# Configure environment variables
 cp .env.example .env
-# → .env mit deinen Werten ausfüllen
+# → fill in your values in .env
 
-# Slash-Commands registrieren
+# Register slash commands
 node deploy-commands.js
 
-# Bot starten
+# Start the bot
 node index.js
 ```
 
-## Konfiguration (`.env`)
+## Configuration (`.env`)
 
-| Variable | Beschreibung |
+| Variable | Description |
 |---|---|
-| `TOKEN` | Discord Bot-Token |
-| `OPENAI_API_KEY` | API-Key für den AI-Provider |
-| `BASE_URL` | Base-URL der API (z. B. `https://api.tensorx.ai/v1`) |
-| `AI_MODEL` | Modell-ID (z. B. `deepseek/deepseek-v4-flash`) |
-| `AI_SYSTEM_PROMPT` | System-Prompt für den Bot |
-| `PRICE_PER_MIO_INPUT_TOKENS` | Kosten pro Mio. Input-Tokens (USD) |
-| `PRICE_PER_MIO_OUTPUT_TOKENS` | Kosten pro Mio. Output-Tokens (USD) |
-| | |
+| `TOKEN` | Discord bot token |
+| `OPENAI_API_KEY` | API key for the AI provider |
+| `BASE_URL` | API base URL (e.g. `https://api.tensorx.ai/v1`) |
+| `AI_MODEL` | Model ID (e.g. `deepseek/deepseek-v4-flash`) |
+| `AI_SYSTEM_PROMPT` | System prompt for the bot |
+| `PRICE_PER_MIO_INPUT_TOKENS` | Cost per 1M input tokens (USD) |
+| `PRICE_PER_MIO_OUTPUT_TOKENS` | Cost per 1M output tokens (USD) |
 
-## Projektstruktur
+## Project structure
 
 ```
 ├── commands/
-│   └── utility/          # Slash-Commands (ai.js, ping.js)
-├── events/               # Discord-Events (ready, interactionCreate, msgTracker, vcTracker)
-├── activityState.js      # Datenzentrale: currentDay + SQLite-Persistenz
-├── deploy-commands.js    # Registriert Slash-Commands
-├── index.js              # Bot-Einstiegspunkt
-├── docs.md               # Doku der Tracking-Scripts
-└── .env.example          # Vorlage für Umgebungsvariablen
+│   └── utility/          # Slash commands (ai.js, ping.js)
+├── events/               # Discord events (ready, interactionCreate, msgTracker, vcTracker)
+├── activityState.js      # Data hub: currentDay + SQLite persistence
+├── deploy-commands.js    # Registers slash commands
+├── index.js              # Bot entry point
+├── docs.md               # Tracking scripts documentation
+└── .env.example          # Environment variables template
 ```
 
-## Lizenz
+## License
 
 MIT
