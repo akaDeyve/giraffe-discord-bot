@@ -1,0 +1,13 @@
+services:
+  app:
+    image: node:latest
+    container_name: giraffe-discord-bot
+    working_dir: /var/www/html
+    init: true
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+      - /var/www/html/node_modules
+    env_file:
+      - .env
+    command: sh -c "npm install && node index.js"
