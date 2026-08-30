@@ -84,13 +84,13 @@ module.exports = {
     const responseEmbed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setDescription(
-        `**${content}**\n\n[Datenschutzrichtlinie](https://openrouter.ai/privacy)`,
+        `**${content}**\n\n[Datenschutzrichtlinie](${process.env.PROVIDER_PRIVACY})`,
       )
 
     // KORREKTUR: Reiner, sauberer Text für den Footer ohne HTML-Tags
     if (totalCost > 0) {
       responseEmbed.setFooter({
-        text: `Modell: ${process.env.AI_MODEL} • Kosten: $${totalCost.toFixed(5)} \nProvided by Openrouter`,
+        text: `Modell: ${process.env.AI_MODEL} • Kosten: $${totalCost.toFixed(5)} \n${process.env.PROVIDER}`,
       });
     } else {
       responseEmbed.setFooter({
