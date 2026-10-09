@@ -1,67 +1,95 @@
-# 🦒 Giraffe – Discord AI Bot
+# Giraffe - Discord AI Bot
 
-English · **[Deutsch](README.de.md)**
-
-A Discord bot with AI integration built on **discord.js v14**, communicating with LLMs via **Mistral AI** (Mistral Large 4).
+A Discord bot with a Mistral AI-powered `/ai` command and daily activity tracking, built on **discord.js v14**.
 
 ## Features
 
-- **`/ai <prompt>`** – Ask an AI model a question (with cost display)
-- **`/ping`** – Simple ping-pong command
-- Message & voice activity tracking (stored daily in SQLite)
-- Cooldown system for commands
+- `/ai <prompt>` - ask Mistral Large 4, cost per request shown in the footer
+- `/ping` - latency check
+- Daily message and voice activity tracking, stored in SQLite
 
-## Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18 or newer)
-- A Discord bot and its token ([Discord Developer Portal](https://discord.com/developers/applications))
-- An API key from [Mistral AI](https://console.mistral.ai)
-
-## Installation
+## Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd Giraffe
-
-# Install dependencies
 npm install
-
-# Configure environment variables
-cp .env.example .env
-# → fill in your values in .env
-
-# Register slash commands
+cp .env.example .env   # fill in your values
 node deploy-commands.js
-
-# Start the bot
 node index.js
 ```
 
+Docker: `docker compose up -d` (reads `.env` via `env_file`).
+
 ## Configuration (`.env`)
 
-| Variable | Description |
-|---|---|
-| `TOKEN` | Discord bot token |
-| `MISTRAL_API_KEY` | API key for Mistral AI |
-| `BASE_URL` | API base URL (`https://api.mistral.ai/v1`) |
-| `AI_MODEL` | Model ID (e.g. `mistral-large-latest`) |
-| `AI_SYSTEM_PROMPT` | System prompt for the bot |
-| `PRICE_PER_MIO_INPUT_TOKENS` | Cost per 1M input tokens (USD) |
-| `PRICE_PER_MIO_OUTPUT_TOKENS` | Cost per 1M output tokens (USD) |
+| Variable | Description | Example |
+|---|---|---|
+| `TOKEN` | Discord bot token | ... |
+| `MISTRAL_API_KEY` | API key from [console.mistral.ai](https://console.mistral.ai) | ... |
+| `BASE_URL` | API base URL | `https://api.mistral.ai/v1` |
+| `AI_MODEL` | Model ID | `mistral-large-4` |
+| `AI_SYSTEM_PROMPT` | System prompt for the AI | ... |
+| `PRICE_PER_MIO_INPUT_TOKENS` | USD per 1M input tokens | `0.68` |
+| `PRICE_PER_MIO_OUTPUT_TOKENS` | USD per 1M output tokens | `2.09` |
+| `PROVIDER` | Provider name for the footer | `Mistral AI` |
+| `PROVIDER_PRIVACY` | Privacy policy link | `https://mistral.ai/privacy-policy` |
 
-## Project structure
+## Cost calculation
 
 ```
-├── commands/
-│   └── utility/          # Slash commands (ai.js, ping.js)
-├── events/               # Discord events (ready, interactionCreate, msgTracker, vcTracker)
-├── activityState.js      # Data hub: currentDay + SQLite persistence
-├── deploy-commands.js    # Registers slash commands
-├── index.js              # Bot entry point
-├── docs.md               # Tracking scripts documentation
-└── .env.example          # Environment variables template
+cost = (prompt_tokens / 1,000,000)     * PRICE_PER_MIO_INPUT_TOKENS
+     + (completion_tokens / 1,000,000) * PRICE_PER_MIO_OUTPUT_TOKENS
 ```
+
+Token counts come from the API response's `usage` field. If no usage data is returned, no cost is shown.
+
+## Activity tracking
+
+### Runtime state (in memory)
+
+| Variable | Type | Description |
+|---|---|---|
+| `currentDay.date` | `string` | Current local date |
+| `currentDay.messages` | `integer` | Messages today (bots excluded) |
+| `currentDay.voiceSeconds` | `integer` | Voice occupancy seconds today |
+| `channelHumanCount` | `Map<channelId, int>` | Humans currently in each voice channel |
+| `channelOccupiedSince` | `Map<channelId, timestamp>` | Occupied since (set by first human, runtime-only) |
+
+### Formulas
+
+```
+first human joins:         occupied_since = now
+last human leaves:         voice_seconds += floor((now - occupied_since) / 1000)
+day change while occupied: voice_seconds += floor((midnight - occupied_since) / 1000)
+                           occupied_since = midnight
+channel move:              leave old channel + join new channel
+```
+
+`occupied_since` is runtime-only; after a bot restart, occupied channels are re-seeded at restart time (time before the restart is not counted).
+
+### Update and persistence flow
+
+```mermaid
+flowchart LR
+    MSG["MessageCreate (non-bot)"] -->|"messages += 1"| CD["currentDay"]
+    VC["VoiceStateUpdate (non-bot)"] -->|"occupancy formulas"| CD
+    CD -->|"every 20 s: saveStats()"| CC{"day change?"}
+    CC -->|"yes: credit until midnight, reset"| PS["persistStats()"]
+    CC -->|"no"| PS
+    PS -->|"upsert ON CONFLICT(date)"| DB[("daily_stats (SQLite)")]
+```
+
+## Database (`database.db`, SQLite)
+
+```mermaid
+erDiagram
+    daily_stats {
+        TEXT date PK "local date string"
+        INTEGER messages "messages that day (bots excluded)"
+        INTEGER voice_seconds "voice channel occupancy seconds"
+    }
+```
+
+Single table, upserted every 20 seconds. `voice_seconds` measures **occupancy time, not person-time**: 2 people in one channel for 60 s count as 60 s. Counters reset at local midnight; time already spent in still-occupied channels is credited to the old day first.
 
 ## License
 

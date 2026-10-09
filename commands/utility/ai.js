@@ -15,73 +15,35 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    // Discord sagen, dass wir etwas Zeit brauchen
     await interaction.deferReply();
-
-    const input = interaction.options.getString("input");
 
     const openai = new OpenAI({
       baseURL: process.env.BASE_URL,
       apiKey: process.env.MISTRAL_API_KEY,
     });
 
-    // Variablen außerhalb definieren, damit sie überall im Code lesbar sind
     let content = "Keine Antwort erhalten.";
     let totalCost = 0;
-    let costText = "";
 
     try {
       const response = await openai.chat.completions.create({
         model: process.env.AI_MODEL,
         messages: [
-          {
-            role: "system",
-            content: process.env.AI_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: `${input}`,
-          },
+          { role: "system", content: process.env.AI_SYSTEM_PROMPT },
+          { role: "user", content: interaction.options.getString("input") },
         ],
       });
 
-      // 1. Text auslesen (Mistral liefert die Antwort teils als Text-Blöcke)
+      // Mistral liefert die Antwort teils als Text-Blöcke statt einem String
       const rawContent = response.choices[0]?.message?.content;
-      if (typeof rawContent === "string") {
-        content = rawContent || "Keine Antwort erhalten.";
-      } else if (Array.isArray(rawContent)) {
-        content =
-          rawContent
-            .map((part) =>
-              typeof part === "string" ? part : part?.text ?? "",
-            )
-            .join("") || "Keine Antwort erhalten.";
-      }
+      const parts = typeof rawContent === "string" ? [rawContent] : rawContent ?? [];
+      content = parts.map((part) => part?.text ?? part ?? "").join("") || "Keine Antwort erhalten.";
 
-      // 2. Token-Verbrauch auslesen und Kosten berechnen
-      const usage = response.usage;
-      if (usage) {
-        const promptTokens = usage.prompt_tokens;
-        const completionTokens = usage.completion_tokens;
-
-        // Preise definieren
-        const PRICE_PER_MIO_INPUT = process.env.PRICE_PER_MIO_INPUT_TOKENS || 0;
-        const PRICE_PER_MIO_OUTPUT =
-          process.env.PRICE_PER_MIO_OUTPUT_TOKENS || 0;
-
-        // Kosten berechnen (Wert wird in die obere Variable geschrieben)
-        const costInput = (promptTokens / 1000000) * PRICE_PER_MIO_INPUT;
-        const costOutput = (completionTokens / 1000000) * PRICE_PER_MIO_OUTPUT;
-        totalCost = costInput + costOutput;
-      }
-
-      // Wenn ein Fehler auftrat, hängen wir keine (oder eine leere) Kostenrechnung an
-
-      if (totalCost > 0) {
-        costText = `\n\n\n*(Kosten für diese Anfrage mit ${process.env.AI_MODEL}: $${totalCost.toFixed(5)})*`;
-      } else {
-        costText = `\n\n\n*(Kosten Konnten nicht ermittelt werden.)*`;
-      }
+      // Token-Verbrauch auslesen und Kosten berechnen
+      const { prompt_tokens: promptTokens, completion_tokens: completionTokens } = response.usage ?? {};
+      totalCost =
+        (promptTokens / 1000000) * (process.env.PRICE_PER_MIO_INPUT_TOKENS ?? 0) +
+        (completionTokens / 1000000) * (process.env.PRICE_PER_MIO_OUTPUT_TOKENS ?? 0);
 
       console.log(content);
     } catch (error) {
@@ -89,27 +51,17 @@ module.exports = {
       content = "Es gab einen Fehler bei der Anfrage an die KI.";
     }
 
-    // Erstellen des Embeds
-    const responseEmbed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setDescription(
-        `**${content}**\n\n[Datenschutzrichtlinie](${process.env.PROVIDER_PRIVACY})`,
-      )
+    const footerText = totalCost > 0
+      ? `Modell: ${process.env.AI_MODEL} • Kosten: $${totalCost.toFixed(5)} \n${process.env.PROVIDER}`
+      : `Modell: ${process.env.AI_MODEL} • Provided by ${process.env.PROVIDER}`;
 
-    // KORREKTUR: Reiner, sauberer Text für den Footer ohne HTML-Tags
-    if (totalCost > 0) {
-      responseEmbed.setFooter({
-        text: `Modell: ${process.env.AI_MODEL} • Kosten: $${totalCost.toFixed(5)} \n${process.env.PROVIDER}`,
-      });
-    } else {
-      responseEmbed.setFooter({
-        text: `Modell: ${process.env.AI_MODEL} • Provided by ${process.env.PROVIDER}`,
-      });
-    }
-
-    // Das Embed absenden
     await interaction.editReply({
-      embeds: [responseEmbed],
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setDescription(`**${content}**\n\n[Datenschutzrichtlinie](${process.env.PROVIDER_PRIVACY})`)
+          .setFooter({ text: footerText }),
+      ],
     });
   },
 };
