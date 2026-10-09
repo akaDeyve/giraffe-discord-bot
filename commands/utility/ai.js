@@ -22,7 +22,7 @@ module.exports = {
 
     const openai = new OpenAI({
       baseURL: process.env.BASE_URL,
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: process.env.MISTRAL_API_KEY,
     });
 
     // Variablen außerhalb definieren, damit sie überall im Code lesbar sind
@@ -45,9 +45,18 @@ module.exports = {
         ],
       });
 
-      // 1. Text auslesen
-      content =
-        response.choices[0]?.message?.content || "Keine Antwort erhalten.";
+      // 1. Text auslesen (Mistral liefert die Antwort teils als Text-Blöcke)
+      const rawContent = response.choices[0]?.message?.content;
+      if (typeof rawContent === "string") {
+        content = rawContent || "Keine Antwort erhalten.";
+      } else if (Array.isArray(rawContent)) {
+        content =
+          rawContent
+            .map((part) =>
+              typeof part === "string" ? part : part?.text ?? "",
+            )
+            .join("") || "Keine Antwort erhalten.";
+      }
 
       // 2. Token-Verbrauch auslesen und Kosten berechnen
       const usage = response.usage;
@@ -94,7 +103,7 @@ module.exports = {
       });
     } else {
       responseEmbed.setFooter({
-        text: `Modell: ${process.env.AI_MODEL} • Provided by TensorX AI`,
+        text: `Modell: ${process.env.AI_MODEL} • Provided by ${process.env.PROVIDER}`,
       });
     }
 

@@ -2,7 +2,7 @@
 
 **[English](README.md)** · Deutsch
 
-Ein Discord-Bot mit KI-Integration, der auf **discord.js v14** basiert und über eine OpenAI-kompatible API (z. B. TensorX AI) mit LLMs kommuniziert.
+Ein Discord-Bot mit KI-Integration, der auf **discord.js v14** basiert und über **Mistral AI** (Mistral Large 4) mit LLMs kommuniziert.
 
 ## Funktionen
 
@@ -15,7 +15,7 @@ Ein Discord-Bot mit KI-Integration, der auf **discord.js v14** basiert und über
 
 - [Node.js](https://nodejs.org/) (v18 oder neuer)
 - Ein Discord-Bot und dessen Token ([Discord Developer Portal](https://discord.com/developers/applications))
-- Ein API-Key eines OpenAI-kompatiblen Anbieters (z. B. [TensorX AI](https://tensorx.ai))
+- Ein API-Key von [Mistral AI](https://console.mistral.ai)
 
 ## Installation
 
@@ -43,9 +43,9 @@ node index.js
 | Variable | Beschreibung |
 |---|---|
 | `TOKEN` | Discord Bot-Token |
-| `OPENAI_API_KEY` | API-Key für den AI-Provider |
-| `BASE_URL` | Base-URL der API (z. B. `https://api.tensorx.ai/v1`) |
-| `AI_MODEL` | Modell-ID (z. B. `deepseek/deepseek-v4-flash`) |
+| `MISTRAL_API_KEY` | API-Key für Mistral AI |
+| `BASE_URL` | Base-URL der API (`https://api.mistral.ai/v1`) |
+| `AI_MODEL` | Modell-ID (z. B. `mistral-large-latest`) |
 | `AI_SYSTEM_PROMPT` | System-Prompt für den Bot |
 | `PRICE_PER_MIO_INPUT_TOKENS` | Kosten pro Mio. Input-Tokens (USD) |
 | `PRICE_PER_MIO_OUTPUT_TOKENS` | Kosten pro Mio. Output-Tokens (USD) |
