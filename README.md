@@ -5,6 +5,9 @@ A Discord bot with a Mistral AI-powered `/ai` command and daily activity trackin
 ## Features
 
 - `/ai <prompt>` - ask Mistral Large 4, cost per request shown in the footer
+- `/websearch <question>` - answer with live web search, sources included
+- `/image <prompt>` - generate an image via a Mistral image agent
+- `/poll <question> <options>` - create a native Discord poll (2-10 comma-separated options, optional multiselect, runs 24 h)
 - `/ping` - latency check
 - Daily message and voice activity tracking, stored in SQLite
 
@@ -27,6 +30,9 @@ Docker: `docker compose up -d` (reads `.env` via `env_file`).
 | `MISTRAL_API_KEY` | API key from [console.mistral.ai](https://console.mistral.ai) | ... |
 | `BASE_URL` | API base URL | `https://api.mistral.ai/v1` |
 | `AI_MODEL` | Model ID | `mistral-large-4` |
+| `AI_REASONING_EFFORT` | `none` (fast) or `high` (thinking chunks, more tokens) | `none` |
+| `IMAGE_MODEL` | Model of the image agent for `/image` | `mistral-medium-latest` |
+| `WEBSEARCH_MODEL` | Model of the websearch agent for `/websearch` | `mistral-medium-latest` |
 | `AI_SYSTEM_PROMPT` | System prompt for the AI | ... |
 | `PRICE_PER_MIO_INPUT_TOKENS` | USD per 1M input tokens | `0.68` |
 | `PRICE_PER_MIO_OUTPUT_TOKENS` | USD per 1M output tokens | `2.09` |
