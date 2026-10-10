@@ -35,7 +35,7 @@ module.exports = {
       content = contentToText(response.choices[0]?.message?.content) || content;
       totalCost = costOf(response.usage);
     } catch (error) {
-      console.error("Fehler bei der Anfrage:", error);
+      console.error("Fehler bei der Anfrage:", error.status, error.message, error.error);
       content = "Es gab einen Fehler bei der Anfrage an die KI.";
     }
 
