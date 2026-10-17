@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { getAgent, runConversation, getOutputText, costOf, buildEmbed } = require("../../mistral");
 
-const MODEL = () => process.env.WEBSEARCH_MODEL ?? "mistral-medium-latest";
+const MODEL = () => process.env.WEBSEARCH_MODEL ?? "mistral-medium-3-5";
 
 const websearchAgent = () =>
   getAgent({
