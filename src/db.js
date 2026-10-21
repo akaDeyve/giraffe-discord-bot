@@ -1,6 +1,6 @@
-const Database = require("better-sqlite3");
+const { DatabaseSync } = require("node:sqlite");
 
-const db = new Database("./database.db");
+const db = new DatabaseSync("./database.db");
 
 // Synchroner Zugriff: prepare(sql).run/get/all mit Parametern
 module.exports = {
