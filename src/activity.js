@@ -11,13 +11,13 @@ const currentDay = {
 const channelHumanCount = new Map(); // channelId -> Anzahl Menschen
 const channelOccupiedSince = new Map(); // channelId -> Belegt-seit
 
-async function init() {
-  await run(`CREATE TABLE IF NOT EXISTS daily_stats (
+function init() {
+  run(`CREATE TABLE IF NOT EXISTS daily_stats (
     date TEXT PRIMARY KEY,
     messages INTEGER NOT NULL DEFAULT 0,
     voice_seconds INTEGER NOT NULL DEFAULT 0
   )`);
-  const row = await get("SELECT * FROM daily_stats WHERE date = ?", [currentDay.date]);
+  const row = get("SELECT * FROM daily_stats WHERE date = ?", [currentDay.date]);
   if (row) {
     currentDay.voiceSeconds = row.voice_seconds;
     currentDay.messages = row.messages;
@@ -52,7 +52,7 @@ function endOccupancy(channelId) {
 }
 
 function persistStats() {
-  return run(
+  run(
     `INSERT INTO daily_stats (date, messages, voice_seconds) VALUES (?, ?, ?)
      ON CONFLICT(date) DO UPDATE SET messages = excluded.messages, voice_seconds = excluded.voice_seconds`,
     [currentDay.date, currentDay.messages, currentDay.voiceSeconds],

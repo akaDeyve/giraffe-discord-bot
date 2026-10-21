@@ -128,11 +128,11 @@ deploy-commands.js     Registriert alle Slash-Commands global
 commands/              Ein Command pro Datei (ai, birthday, image, ping, poll, websearch)
 events/                Ein Discord-Event pro Datei (interactionCreate, messageCreate, ready, voiceStateUpdate)
 src/
-  db.js                Einziger DB-Handle: run/get/all als Promises
+  db.js                Einziger DB-Handle: run/get/all (better-sqlite3, synchron)
   activity.js          Nachrichten-/Voice-Tracking + daily_stats-Persistenz
   birthdays.js         Geburtstags-Verwaltung, Rolle & Wünsche
   ai.js                Mistral-API-Helfer (Agents, Konversationen, Kosten, Embeds)
-  dashboard.js         Web-Dashboard-Server (Status/Stats/Senden)
+  dashboard.js         Web-Dashboard-Server (Express: Status/Stats/Senden)
   loaders.js           Lädt commands/ und events/ automatisch
   public/index.html    Dashboard-Frontend
 ```

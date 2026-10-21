@@ -4,8 +4,8 @@ const { run, get, all } = require("./db");
 const BIRTHDAY_ROLE_ID = "881297542313287700";
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-async function init() {
-  await run(`CREATE TABLE IF NOT EXISTS birthdays (
+function init() {
+  run(`CREATE TABLE IF NOT EXISTS birthdays (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     day INTEGER NOT NULL,
@@ -13,7 +13,7 @@ async function init() {
     year INTEGER,
     PRIMARY KEY (guild_id, user_id)
   )`);
-  await run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
+  run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     date TEXT NOT NULL,
@@ -21,19 +21,19 @@ async function init() {
   )`);
 }
 
-async function setBirthday(guildId, userId, day, month, year) {
-  await run(
+function setBirthday(guildId, userId, day, month, year) {
+  run(
     `INSERT INTO birthdays (guild_id, user_id, day, month, year) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(guild_id, user_id) DO UPDATE SET day = excluded.day, month = excluded.month, year = excluded.year`,
     [guildId, userId, day, month, year ?? null],
   );
 }
 
-async function deleteBirthday(guildId, userId) {
-  return (await run("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId])) > 0;
+function deleteBirthday(guildId, userId) {
+  return run("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId]).changes > 0;
 }
 
-async function getBirthday(guildId, userId) {
+function getBirthday(guildId, userId) {
   return get("SELECT day, month, year FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId]);
 }
 
@@ -60,7 +60,7 @@ async function sendBirthdayWish(guild, member, age) {
 async function applyBirthdayRoles(client) {
   const now = new Date();
   const today = now.toLocaleDateString();
-  const birthdays = await all("SELECT * FROM birthdays");
+  const birthdays = all("SELECT * FROM birthdays");
 
   for (const guild of client.guilds.cache.values()) {
     const todays = birthdays.filter(
@@ -94,17 +94,13 @@ async function applyBirthdayRoles(client) {
       if (!member) continue;
 
       // INSERT OR IGNORE verhindert doppelte Wünsche, auch nach Neustarts
-      const claimed = await run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [
-        guild.id,
-        userId,
-        today,
-      ]);
-      if (!claimed) continue;
+      const { changes } = run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [guild.id, userId, today]);
+      if (!changes) continue;
 
       try {
         await sendBirthdayWish(guild, member, year ? now.getFullYear() - year : null);
       } catch (err) {
-        await run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [
+        run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [
           guild.id,
           userId,
           today,
