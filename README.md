@@ -9,7 +9,9 @@ A Discord bot with a Mistral AI-powered `/ai` command and daily activity trackin
 - `/image <prompt>` - generate an image via a Mistral image agent
 - `/poll <question> <options>` - create a native Discord poll (2-10 comma-separated options, optional multiselect, runs 24 h)
 - `/ping` - latency check
-- Daily message and voice activity tracking, stored in SQLite
+- Daily message and voice activity tracking, stored in SQLite (anonymized: no user IDs, just per-channel human counts)
+- Birthday scheduler: checks once daily at 12:00 (catches up if the bot was offline), role from `BIRTHDAY_ROLE_ID`
+- Auto-role for new members via `AUTO_ROLE_ID`
 
 ## Setup
 
@@ -100,3 +102,43 @@ Single table, upserted every 20 seconds. `voice_seconds` measures **occupancy ti
 ## License
 
 MIT
+
+## Web-Dashboard
+
+Der Bot startet automatisch ein Web-Dashboard unter `http://127.0.0.1:8080` (konfigurierbar). Es zeigt:
+
+- **Status**: Bot-Tag, Avatar, WS-Ping, Presence, Uptime (Prozess/Bot), Speicher, Node-Version, Server/Mitglieder/Channel-Zahlen
+- **Statistiken**: tägliche Nachrichten- und Voice-Zeitreihen aus der SQLite-DB (`daily_stats`, letzte 60 Tage)
+- **Geburtstage**: alle Einträge aus der `birthdays`-Tabelle
+- **Nachricht senden**: als Bot in jeden Textkanal senden – einfach Channel-ID und Text angeben (optional `@everyone`/Rollen-Pings erlauben)
+
+Konfiguration in `.env`:
+
+| Variable | Beschreibung | Standard |
+|---|---|---|
+| `DASHBOARD_PORT` | Port des Dashboards | `8080` |
+| `DASHBOARD_HOST` | Bindung (`127.0.0.1` = nur lokal; `0.0.0.0` im Docker-Container) | `127.0.0.1` |
+| `DASHBOARD_TOKEN` | Wenn gesetzt, brauchen alle API-Requests `Authorization: Bearer <Token>` | (leer = kein Schutz) |
+| `BIRTHDAY_ROLE_ID` | Rollen-ID, die der Bot am Geburtstag vergibt (leer = keine Rolle) | (leer) |
+| `AUTO_ROLE_ID` | Rollen-ID, die jeder frisch beigetretene Member automatisch bekommt (leer = keine Rolle) | (leer) |
+
+Für den Zugriff von außerhalb einen Reverse-Proxy (z. B. Nginx/Caddy) mit HTTPS vor das Dashboard schalten und `DASHBOARD_TOKEN` setzen.
+
+## Projektstruktur
+
+```
+index.js               Client, Intents, Loader für Commands/Events
+deploy-commands.js     Registriert alle Slash-Commands global
+commands/              Ein Command pro Datei (ai, birthday, image, ping, poll, websearch)
+events/                Ein Discord-Event pro Datei (interactionCreate, messageCreate, ready, voiceStateUpdate)
+src/
+  db.js                Einziger DB-Handle: run/get/all (better-sqlite3, synchron)
+  activity.js          Nachrichten-/Voice-Tracking + daily_stats-Persistenz
+  birthdays.js         Geburtstags-Verwaltung, Rolle & Wünsche
+  ai.js                Mistral-API-Helfer (Agents, Konversationen, Kosten, Embeds)
+  dashboard.js         Web-Dashboard-Server (Express: Status/Stats/Senden)
+  loaders.js           Lädt commands/ und events/ automatisch
+  public/index.html    Dashboard-Frontend
+```
+
+Regeln: neue Commands einfach als Datei in `commands/` ablegen (`data` + `execute`), neue Events in `events/` (`name` + `execute`, Client wird als letzter Parameter übergeben). Dashboard-Endpoints in `src/dashboard.js` erweitern.

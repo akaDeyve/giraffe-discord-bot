@@ -1,17 +1,11 @@
-const sqlite3 = require("sqlite3");
 const { PermissionFlagsBits } = require("discord.js");
+const { run, get, all } = require("./db");
 
-const BIRTHDAY_ROLE_ID = "881297542313287700";
-const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const birthdayRoleId = () => process.env.BIRTHDAY_ROLE_ID || "";
+const WISH_HOUR = 12; // einmal täglich um 12:00 Uhr prüfen und auslösen
 
-const db = new sqlite3.Database(
-  "./database.db",
-  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-  (err) => err && console.error(err.message),
-);
-
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS birthdays (
+function init() {
+  run(`CREATE TABLE IF NOT EXISTS birthdays (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     day INTEGER NOT NULL,
@@ -19,52 +13,27 @@ db.serialize(() => {
     year INTEGER,
     PRIMARY KEY (guild_id, user_id)
   )`);
-  db.run("ALTER TABLE birthdays ADD COLUMN year INTEGER", (err) => {
-    if (err && !err.message.includes("duplicate column name")) console.error(err.message);
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
+  run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     date TEXT NOT NULL,
     PRIMARY KEY (guild_id, user_id, date)
   )`);
-});
-
-// Generische Promise-Wrapper fuer sqlite3
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this.changes);
-    });
-  });
 }
 
-function get(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row ?? null)));
-  });
-}
-
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
-}
-
-async function setBirthday(guildId, userId, day, month, year) {
-  await run(
+function setBirthday(guildId, userId, day, month, year) {
+  run(
     `INSERT INTO birthdays (guild_id, user_id, day, month, year) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(guild_id, user_id) DO UPDATE SET day = excluded.day, month = excluded.month, year = excluded.year`,
     [guildId, userId, day, month, year ?? null],
   );
 }
 
-async function deleteBirthday(guildId, userId) {
-  return (await run("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId])) > 0;
+function deleteBirthday(guildId, userId) {
+  return run("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId]).changes > 0;
 }
 
-async function getBirthday(guildId, userId) {
+function getBirthday(guildId, userId) {
   return get("SELECT day, month, year FROM birthdays WHERE guild_id = ? AND user_id = ?", [guildId, userId]);
 }
 
@@ -72,7 +41,7 @@ async function getBirthday(guildId, userId) {
 function findWishChannel(guild) {
   const me = guild.members.me;
   const canSend = (channel) =>
-    channel.isTextBased() && channel.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
+    channel?.isTextBased() && channel.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
   return canSend(guild.systemChannel) ? guild.systemChannel : guild.channels.cache.find(canSend);
 }
 
@@ -87,11 +56,11 @@ async function sendBirthdayWish(guild, member, age) {
   });
 }
 
-// Rolle vergeben/entfernen und pro Geburtstagskind genau einen Wunsch pro Tag schicken
-async function applyBirthdayRoles(client) {
+// Einmal täglich um WISH_HOUR: Geburtstags-Rolle setzen/entfernen und wünschen
+async function checkBirthdays(client) {
   const now = new Date();
   const today = now.toLocaleDateString();
-  const birthdays = await all("SELECT * FROM birthdays");
+  const birthdays = all("SELECT * FROM birthdays");
 
   for (const guild of client.guilds.cache.values()) {
     const todays = birthdays.filter(
@@ -105,7 +74,7 @@ async function applyBirthdayRoles(client) {
       console.error(`Member laden fehlgeschlagen (${guild.name}): ${err.message}`);
     }
 
-    const role = guild.roles.cache.get(BIRTHDAY_ROLE_ID);
+    const role = birthdayRoleId() && guild.roles.cache.get(birthdayRoleId());
     if (role) {
       for (const userId of todaysIds) {
         const member = guild.members.cache.get(userId);
@@ -124,31 +93,42 @@ async function applyBirthdayRoles(client) {
       const member = guild.members.cache.get(userId);
       if (!member) continue;
 
-      // INSERT OR IGNORE verhindert doppelte Wuensche, auch nach Neustarts
-      const claimed = await run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [
-        guild.id,
-        userId,
-        today,
-      ]);
-      if (!claimed) continue;
+      // INSERT OR IGNORE verhindert doppelte Wünsche, auch nach Neustarts
+      const { changes } = run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [guild.id, userId, today]);
+      if (!changes) continue;
 
       try {
         await sendBirthdayWish(guild, member, year ? now.getFullYear() - year : null);
       } catch (err) {
-        await run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [
-          guild.id,
-          userId,
-          today,
-        ]);
+        run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [guild.id, userId, today]);
         console.error(`Geburtstagswunsch fehlgeschlagen (${member.user.tag}): ${err.message}`);
       }
     }
   }
 }
 
-function startBirthdayRoleCheck(client) {
-  applyBirthdayRoles(client).catch(console.error);
-  setInterval(() => applyBirthdayRoles(client).catch(console.error), CHECK_INTERVAL_MS);
+// Prüft täglich um WISH_HOUR:00 – nachgeholt, falls der Bot da (noch) nicht lief
+function startBirthdayScheduler(client) {
+  let lastRunDate = null;
+
+  const tick = () => {
+    const now = new Date();
+    const due = now.getHours() >= WISH_HOUR;
+    if (!due || lastRunDate === now.toLocaleDateString()) return;
+
+    lastRunDate = now.toLocaleDateString();
+    checkBirthdays(client).catch(console.error);
+  };
+
+  tick();
+  setInterval(tick, 60 * 1000);
 }
 
-module.exports = { setBirthday, deleteBirthday, getBirthday, startBirthdayRoleCheck };
+module.exports = {
+  init,
+  setBirthday,
+  deleteBirthday,
+  getBirthday,
+  startBirthdayScheduler,
+  checkBirthdays,
+};

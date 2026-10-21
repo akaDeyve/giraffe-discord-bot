@@ -1,29 +1,11 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { getAgent, runConversation, getOutputText, costOf, buildEmbed } = require("../../mistral");
+const { getAgent, runConversation, getOutputText, getToolResults, costOf, buildEmbed } = require("../src/ai");
 
 const MODEL = () => process.env.WEBSEARCH_MODEL ?? "mistral-medium-3-5";
 
-const websearchAgent = () =>
-  getAgent({
-    name: "Giraffe Websearch Agent",
-    description: "Beantwortet Fragen mit aktueller Information aus dem Web.",
-    instructions: "Beantworte Fragen kurz und prägnant auf Deutsch. Nutze die Websuche für aktuelle Informationen.",
-    tools: [{ type: "web_search" }],
-    model: MODEL(),
-    completionArgs: { tool_choice: "required" },
-  });
-
 // Quellen-URLs aus den Tool-Ausführungen der Outputs
 function getSources(outputs) {
-  const sources = [];
-  for (const entry of outputs) {
-    if (entry?.type !== "tool.execution" || !entry.info?.result) continue;
-    try {
-      const results = typeof entry.info.result === "string" ? JSON.parse(entry.info.result) : entry.info.result;
-      sources.push(...Object.values(results ?? {}).map((result) => result?.url).filter(Boolean));
-    } catch {}
-  }
-  return [...new Set(sources)];
+  return [...new Set(getToolResults(outputs).map((result) => result?.url).filter(Boolean))];
 }
 
 module.exports = {
@@ -38,13 +20,23 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply();
     const question = interaction.options.getString("frage");
+    const model = MODEL();
 
     let content = "Keine Antwort erhalten.";
     let sources = [];
     let totalCost = 0;
 
     try {
-      const { outputs, usage } = await runConversation(await websearchAgent(), question);
+      const agentId = await getAgent({
+        name: "Giraffe Websearch Agent",
+        description: "Beantwortet Fragen mit aktueller Information aus dem Web.",
+        instructions: "Beantworte Fragen kurz und prägnant auf Deutsch. Nutze die Websuche für aktuelle Informationen.",
+        tools: [{ type: "web_search" }],
+        model,
+        completionArgs: { tool_choice: "required" },
+      });
+
+      const { outputs, usage } = await runConversation(agentId, question);
       content = getOutputText(outputs) || content;
       sources = getSources(outputs).slice(0, 5);
       totalCost = costOf(usage);
@@ -54,7 +46,7 @@ module.exports = {
     }
 
     await interaction.editReply({
-      embeds: [buildEmbed(content, { model: MODEL(), totalCost, sources })],
+      embeds: [buildEmbed(content, { model, totalCost, sources })],
     });
   },
 };

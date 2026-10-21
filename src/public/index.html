@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giraffe Dashboard</title>
+<style>
+  :root {
+    --bg: #131517; --panel: #1d2023; --border: #2c3136;
+    --text: #e7eaec; --muted: #9aa3ab; --accent: #58a6ff; --ok: #3fb950; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  header img { width: 42px; height: 42px; border-radius: 50%; }
+  header h1 { margin: 0; font-size: 20px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; display: grid; gap: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 26px; font-weight: 700; }
+  .card .label { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  input, textarea, button, select { font: inherit; }
+  input, textarea, select { width: 100%; padding: 10px; background: #0f1113; color: var(--text); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+  textarea { min-height: 90px; resize: vertical; }
+  button { background: var(--accent); color: #0b1220; border: 0; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+  .check input { width: auto; margin: 0; }
+  .msg { font-size: 14px; margin-top: 10px; min-height: 20px; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
+  .scroll { max-height: 320px; overflow-y: auto; }
+  nav { display: flex; gap: 8px; padding: 0 24px; }
+  nav a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+  nav a.active, nav a:hover { color: var(--text); background: var(--panel); }
+</style>
+</head>
+<body>
+<header>
+  <img id="botAvatar" src="" alt="" hidden>
+  <div>
+    <h1 id="botName">Giraffe Dashboard</h1>
+    <div class="sub" id="botSub">Lädt…</div>
+  </div>
+</header>
+<nav>
+  <a href="#" data-view="status" class="active">Status</a>
+  <a href="#" data-view="stats">Statistiken</a>
+  <a href="#" data-view="birthdays">Geburtstage</a>
+  <a href="#" data-view="send">Nachricht senden</a>
+</nav>
+<main>
+  <section id="view-status">
+    <div class="grid" id="statusGrid"></div>
+    <div class="card" style="margin-top:16px">
+      <h2>Server</h2>
+      <table id="guildTable"><thead><tr><th>Name</th><th>ID</th><th>Mitglieder</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <section id="view-stats" hidden>
+    <div class="card">
+      <h2>Tägliche Statistiken (letzte 60 Tage)</h2>
+      <div class="scroll">
+      <table id="statsTable"><thead><tr><th>Datum</th><th>Nachrichten</th><th>Voice (h:mm)</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+  <section id="view-birthdays" hidden>
+    <div class="card">
+      <h2>Geburtstage</h2>
+      <div class="scroll">
+      <table id="birthdayTable"><thead><tr><th>Tag</th><th>Jahr</th><th>User-ID</th><th>Server-ID</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+  <section id="view-send" hidden>
+    <div class="card" style="max-width:640px">
+      <h2>Nachricht als Bot senden</h2>
+      <label style="color:var(--muted);font-size:13px">Channel-ID</label>
+      <input id="channelId" placeholder="z. B. 1234567890123456789">
+      <label style="color:var(--muted);font-size:13px">Nachricht (max. 2000 Zeichen)</label>
+      <textarea id="content" maxlength="2000" placeholder="Hallo vom Dashboard!"></textarea>
+      <div class="check"><input type="checkbox" id="allowMentions"> <label for="allowMentions">@everyone / Rollen-Pings erlauben</label></div>
+      <button id="sendBtn">Senden</button>
+      <div class="msg" id="sendMsg"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (sel) => document.querySelector(sel);
+const views = ["status", "stats", "birthdays", "send"];
+
+async function api(path, opts) {
+  const token = localStorage.getItem("dashboardToken") || "";
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (!res.ok && res.status === 401) {
+    const input = prompt("Dashboard-Token erforderlich:");
+    if (input !== null) { localStorage.setItem("dashboardToken", input); return api(path, opts); }
+  }
+  return res;
+}
+
+function fmtVoice(seconds) {
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+async function loadStatus() {
+  const res = await api("/api/status");
+  if (!res.ok) return;
+  const d = await res.json();
+  $("#botName").textContent = d.bot.tag ? `Giraffe – ${d.bot.tag}` : "Giraffe Dashboard";
+  $("#botSub").textContent = `Ping: ${d.bot.ping ?? "?"} ms · Status: ${d.bot.status ?? "?"} · Online seit ${d.runtime.uptimeBot ?? "?"}`;
+  if (d.bot.avatar) { $("#botAvatar").src = d.bot.avatar; $("#botAvatar").hidden = false; }
+  const cards = [
+    [d.runtime.uptimeProcess, "Uptime (Prozess)"],
+    [d.runtime.uptimeBot ?? "–", "Uptime (Bot)"],
+    [`${d.bot.ping ?? "?"} ms`, "WebSocket-Ping"],
+    [d.runtime.guilds, "Server"],
+    [d.runtime.users, "Mitglieder (kumuliert)"],
+    [d.runtime.channels, "Channels (Cache)"],
+    [`${d.runtime.memoryUsedMB} MB`, "Heap-Speicher"],
+    [d.runtime.nodeVersion, "Node.js"],
+    [d.today.messages, "Nachrichten heute"],
+    [fmtVoice(d.today.voiceSeconds), "Voice heute"],
+  ];
+  $("#statusGrid").innerHTML = cards.map(([v, l]) =>
+    `<div class="card"><div class="value">${v}</div><div class="label">${l}</div></div>`).join("");
+  const g = await (await api("/api/guilds")).json();
+  $("#guildTable tbody").innerHTML = g.map((x) =>
+    `<tr><td>${x.name}</td><td>${x.id}</td><td>${x.memberCount}</td></tr>`).join("");
+}
+
+async function loadStats() {
+  const rows = await (await api("/api/stats")).json();
+  $("#statsTable tbody").innerHTML = rows.map((r) =>
+    `<tr><td>${r.date}</td><td>${r.messages}</td><td>${fmtVoice(r.voice_seconds)}</td></tr>`).join("");
+}
+
+async function loadBirthdays() {
+  const rows = await (await api("/api/birthdays")).json();
+  $("#birthdayTable tbody").innerHTML = rows.length
+    ? rows.map((r) =>
+        `<tr><td>${String(r.day).padStart(2, "0")}.${String(r.month).padStart(2, "0")}.</td><td>${r.year ?? "–"}</td><td>${r.user_id}</td><td>${r.guild_id}</td></tr>`).join("")
+    : "<tr><td colspan='4'>Keine Einträge</td></tr>";
+}
+
+$("#sendBtn").addEventListener("click", async () => {
+  const btn = $("#sendBtn"), msg = $("#sendMsg");
+  btn.disabled = true; msg.textContent = ""; msg.className = "msg";
+  try {
+    const res = await api("/api/send", {
+      method: "POST",
+      body: JSON.stringify({
+        channelId: $("#channelId").value.trim(),
+        content: $("#content").value,
+        allowMentions: $("#allowMentions").checked,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = `Gesendet (Message-ID ${data.messageId})`; msg.classList.add("ok"); $("#content").value = ""; }
+    else { msg.textContent = data.error || "Fehler"; msg.classList.add("err"); }
+  } catch (e) { msg.textContent = e.message; msg.classList.add("err"); }
+  btn.disabled = false;
+});
+
+document.querySelectorAll("nav a").forEach((a) => a.addEventListener("click", (e) => {
+  e.preventDefault();
+  document.querySelectorAll("nav a").forEach((x) => x.classList.remove("active"));
+  a.classList.add("active");
+  views.forEach((v) => $(`#view-${v}`).hidden = v !== a.dataset.view);
+}));
+
+loadStatus();
+loadStats();
+loadBirthdays();
+setInterval(loadStatus, 10000);
+</script>
+</body>
+</html>

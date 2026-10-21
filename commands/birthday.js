@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require("discord.js");
-const { setBirthday, deleteBirthday, getBirthday } = require("../../birthdayState");
+const { setBirthday, deleteBirthday, getBirthday } = require("../src/birthdays");
 
 function isValidDate(day, month, year) {
   const probe = new Date(year, month - 1, day);
@@ -70,7 +70,7 @@ module.exports = {
           });
         }
 
-        await setBirthday(interaction.guildId, interaction.user.id, day, month, year);
+        setBirthday(interaction.guildId, interaction.user.id, day, month, year);
         return interaction.reply({
           content: `Dein Geburtstag wurde auf den ${day}.${month}${year ? `.${year}` : ""} gesetzt. Am Tag selbst bekommst du automatisch die Geburtstags-Rolle und eine Nachricht vom Bot.`,
           flags: MessageFlags.Ephemeral,
@@ -78,7 +78,7 @@ module.exports = {
       }
 
       case "delete": {
-        const deleted = await deleteBirthday(interaction.guildId, interaction.user.id);
+        const deleted = deleteBirthday(interaction.guildId, interaction.user.id);
         return interaction.reply({
           content: deleted ? "Dein Geburtstag wurde gelöscht." : "Du hast keinen Geburtstag eingetragen.",
           flags: MessageFlags.Ephemeral,
@@ -87,7 +87,7 @@ module.exports = {
 
       case "show": {
         const user = interaction.options.getUser("user") ?? interaction.user;
-        const birthday = await getBirthday(interaction.guildId, user.id);
+        const birthday = getBirthday(interaction.guildId, user.id);
 
         if (!birthday) {
           return interaction.reply({
