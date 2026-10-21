@@ -7,9 +7,9 @@ const currentDay = {
   messages: 0,
 };
 
-// Voice-Tracking (runtime only): reine Channel-Belegungszeit
-const channelHumanCount = new Map(); // channelId -> Anzahl Menschen
-const channelOccupiedSince = new Map(); // channelId -> Belegt-seit
+// Anonymisiertes Voice-Tracking: nur channelId -> Anzahl Menschen (keine User-IDs)
+const channelHumans = new Map();
+const humansInVoice = () => [...channelHumans.values()].reduce((sum, count) => sum + count, 0);
 
 function init() {
   run(`CREATE TABLE IF NOT EXISTS daily_stats (
@@ -26,29 +26,22 @@ function init() {
 
 // Nach einem Neustart belegte Channel erfassen (zählt ab Neustart)
 function seedVoiceTracking(client) {
-  const states = client.guilds.cache.flatMap((guild) => [...guild.voiceStates.cache.values()]);
-  for (const { channel, member } of states) {
-    if (!channel || !member || member.user.bot) continue;
-    startOccupancy(channel.id);
+  for (const state of client.guilds.cache.flatMap((guild) => [...guild.voiceStates.cache.values()])) {
+    if (!state.channel || state.member?.user.bot) continue;
+    channelHumans.set(state.channel.id, (channelHumans.get(state.channel.id) ?? 0) + 1);
   }
 }
 
-function startOccupancy(channelId) {
-  const count = (channelHumanCount.get(channelId) ?? 0) + 1;
-  channelHumanCount.set(channelId, count);
-  if (count === 1) channelOccupiedSince.set(channelId, Date.now());
-}
+// Tageswechsel prüfen – wird vor Mutationen und im Speicher-Intervall aufgerufen
+function checkDayChange() {
+  const today = new Date().toLocaleDateString();
+  if (currentDay.date === today) return;
 
-function endOccupancy(channelId) {
-  const count = (channelHumanCount.get(channelId) ?? 1) - 1;
-  if (count > 0) return channelHumanCount.set(channelId, count);
-
-  channelHumanCount.delete(channelId);
-  const since = channelOccupiedSince.get(channelId);
-  if (since === undefined) return;
-
-  currentDay.voiceSeconds += Math.floor((Date.now() - since) / 1000);
-  channelOccupiedSince.delete(channelId);
+  persistStats();
+  currentDay.date = today;
+  currentDay.voiceSeconds = 0;
+  currentDay.messages = 0;
+  console.log("Neuer Tag – Stats zurückgesetzt.");
 }
 
 function persistStats() {
@@ -59,32 +52,21 @@ function persistStats() {
   );
 }
 
-// Tageswechsel prüfen – wird vor Mutationen und im Speicher-Intervall aufgerufen
-function checkDayChange() {
-  const today = new Date().toLocaleDateString();
-  if (currentDay.date === today) return;
-
-  // Zeit bis Mitternacht dem alten Tag zuschlagen, Channel ab Mitternacht neu zählen
-  const midnight = new Date().setHours(0, 0, 0, 0);
-  for (const [channelId, since] of channelOccupiedSince) {
-    currentDay.voiceSeconds += Math.floor((midnight - since) / 1000);
-    channelOccupiedSince.set(channelId, midnight);
-  }
-
-  persistStats();
-  currentDay.date = today;
-  currentDay.voiceSeconds = 0;
-  currentDay.messages = 0;
-  console.log("Neuer Tag – Stats zurückgesetzt.");
-}
-
-// Regelmäßig speichern (alle 20 Sekunden, um Datenverlust zu vermeiden)
+// Alle 20 Sekunden: Personen im Voice * 20 s zu heute addieren und persistieren
 function startTracking() {
   init();
   setInterval(() => {
+    currentDay.voiceSeconds += humansInVoice() * 20;
     checkDayChange();
     persistStats();
   }, 20 * 1000);
 }
 
-module.exports = { currentDay, startOccupancy, endOccupancy, seedVoiceTracking, checkDayChange, startTracking };
+module.exports = {
+  currentDay,
+  channelHumans,
+  seedVoiceTracking,
+  checkDayChange,
+  incrementMessages: () => currentDay.messages++,
+  startTracking,
+};

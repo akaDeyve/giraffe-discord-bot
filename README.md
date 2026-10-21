@@ -9,7 +9,9 @@ A Discord bot with a Mistral AI-powered `/ai` command and daily activity trackin
 - `/image <prompt>` - generate an image via a Mistral image agent
 - `/poll <question> <options>` - create a native Discord poll (2-10 comma-separated options, optional multiselect, runs 24 h)
 - `/ping` - latency check
-- Daily message and voice activity tracking, stored in SQLite
+- Daily message and voice activity tracking, stored in SQLite (anonymized: no user IDs, just per-channel human counts)
+- Birthday scheduler: checks once daily at 12:00 (catches up if the bot was offline), role from `BIRTHDAY_ROLE_ID`
+- Auto-role for new members via `AUTO_ROLE_ID`
 
 ## Setup
 
@@ -117,6 +119,8 @@ Konfiguration in `.env`:
 | `DASHBOARD_PORT` | Port des Dashboards | `8080` |
 | `DASHBOARD_HOST` | Bindung (`127.0.0.1` = nur lokal; `0.0.0.0` im Docker-Container) | `127.0.0.1` |
 | `DASHBOARD_TOKEN` | Wenn gesetzt, brauchen alle API-Requests `Authorization: Bearer <Token>` | (leer = kein Schutz) |
+| `BIRTHDAY_ROLE_ID` | Rollen-ID, die der Bot am Geburtstag vergibt (leer = keine Rolle) | (leer) |
+| `AUTO_ROLE_ID` | Rollen-ID, die jeder frisch beigetretene Member automatisch bekommt (leer = keine Rolle) | (leer) |
 
 Für den Zugriff von außerhalb einen Reverse-Proxy (z. B. Nginx/Caddy) mit HTTPS vor das Dashboard schalten und `DASHBOARD_TOKEN` setzen.
 
