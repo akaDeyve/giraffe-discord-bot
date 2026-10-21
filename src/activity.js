@@ -1,12 +1,6 @@
-const sqlite3 = require("sqlite3");
+const { run, get } = require("./db");
 
-const db = new sqlite3.Database(
-  "./database.db",
-  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-  (err) => err && console.error(err.message),
-);
-
-// Aktuelle Tagesaktivität
+// Aktuelle Tagesaktivität (runtime state, alle 20 s in die DB persistiert)
 const currentDay = {
   date: new Date().toLocaleDateString(),
   voiceSeconds: 0,
@@ -17,42 +11,52 @@ const currentDay = {
 const channelHumanCount = new Map(); // channelId -> Anzahl Menschen
 const channelOccupiedSince = new Map(); // channelId -> Belegt-seit
 
-// Tabelle anlegen + heutige Stats laden (serialisiert: Tabelle existiert vor dem Lesen)
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS daily_stats (
+async function init() {
+  await run(`CREATE TABLE IF NOT EXISTS daily_stats (
     date TEXT PRIMARY KEY,
     messages INTEGER NOT NULL DEFAULT 0,
     voice_seconds INTEGER NOT NULL DEFAULT 0
   )`);
-
-  db.get("SELECT * FROM daily_stats WHERE date = ?", [currentDay.date], (err, row) => {
-    if (err) return console.error(err.message);
-    if (!row) return;
+  const row = await get("SELECT * FROM daily_stats WHERE date = ?", [currentDay.date]);
+  if (row) {
     currentDay.voiceSeconds = row.voice_seconds;
     currentDay.messages = row.messages;
-  });
-});
+  }
+}
 
 // Nach einem Neustart belegte Channel erfassen (zählt ab Neustart)
 function seedVoiceTracking(client) {
   const states = client.guilds.cache.flatMap((guild) => [...guild.voiceStates.cache.values()]);
   for (const { channel, member } of states) {
     if (!channel || !member || member.user.bot) continue;
-
-    const count = (channelHumanCount.get(channel.id) ?? 0) + 1;
-    channelHumanCount.set(channel.id, count);
-    if (count === 1) channelOccupiedSince.set(channel.id, Date.now());
+    startOccupancy(channel.id);
   }
 }
 
-// Aktuelle Stats in DB persistieren
+function startOccupancy(channelId) {
+  const count = (channelHumanCount.get(channelId) ?? 0) + 1;
+  channelHumanCount.set(channelId, count);
+  if (count === 1) channelOccupiedSince.set(channelId, Date.now());
+}
+
+function endOccupancy(channelId) {
+  const count = (channelHumanCount.get(channelId) ?? 1) - 1;
+  if (count > 0) return channelHumanCount.set(channelId, count);
+
+  channelHumanCount.delete(channelId);
+  const since = channelOccupiedSince.get(channelId);
+  if (since === undefined) return;
+
+  currentDay.voiceSeconds += Math.floor((Date.now() - since) / 1000);
+  channelOccupiedSince.delete(channelId);
+}
+
 function persistStats() {
-  db.run(
+  return run(
     `INSERT INTO daily_stats (date, messages, voice_seconds) VALUES (?, ?, ?)
      ON CONFLICT(date) DO UPDATE SET messages = excluded.messages, voice_seconds = excluded.voice_seconds`,
     [currentDay.date, currentDay.messages, currentDay.voiceSeconds],
   );
-  console.log(`Stats gespeichert: ${currentDay.date} – Nachrichten: ${currentDay.messages}, Voice-Sekunden: ${currentDay.voiceSeconds}`);
 }
 
 // Tageswechsel prüfen – wird vor Mutationen und im Speicher-Intervall aufgerufen
@@ -74,19 +78,13 @@ function checkDayChange() {
   console.log("Neuer Tag – Stats zurückgesetzt.");
 }
 
-const saveStats = () => {
-  checkDayChange();
-  persistStats();
-};
-
 // Regelmäßig speichern (alle 20 Sekunden, um Datenverlust zu vermeiden)
-setInterval(saveStats, 20 * 1000);
+function startTracking() {
+  init();
+  setInterval(() => {
+    checkDayChange();
+    persistStats();
+  }, 20 * 1000);
+}
 
-module.exports = {
-  currentDay,
-  channelHumanCount,
-  channelOccupiedSince,
-  seedVoiceTracking,
-  checkDayChange,
-  saveStats,
-};
+module.exports = { currentDay, startOccupancy, endOccupancy, seedVoiceTracking, checkDayChange, startTracking };

@@ -1,17 +1,11 @@
-const sqlite3 = require("sqlite3");
 const { PermissionFlagsBits } = require("discord.js");
+const { run, get, all } = require("./db");
 
 const BIRTHDAY_ROLE_ID = "881297542313287700";
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-const db = new sqlite3.Database(
-  "./database.db",
-  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-  (err) => err && console.error(err.message),
-);
-
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS birthdays (
+async function init() {
+  await run(`CREATE TABLE IF NOT EXISTS birthdays (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     day INTEGER NOT NULL,
@@ -19,37 +13,12 @@ db.serialize(() => {
     year INTEGER,
     PRIMARY KEY (guild_id, user_id)
   )`);
-  db.run("ALTER TABLE birthdays ADD COLUMN year INTEGER", (err) => {
-    if (err && !err.message.includes("duplicate column name")) console.error(err.message);
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
+  await run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     date TEXT NOT NULL,
     PRIMARY KEY (guild_id, user_id, date)
   )`);
-});
-
-// Generische Promise-Wrapper fuer sqlite3
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this.changes);
-    });
-  });
-}
-
-function get(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row ?? null)));
-  });
-}
-
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
 }
 
 async function setBirthday(guildId, userId, day, month, year) {
@@ -124,7 +93,7 @@ async function applyBirthdayRoles(client) {
       const member = guild.members.cache.get(userId);
       if (!member) continue;
 
-      // INSERT OR IGNORE verhindert doppelte Wuensche, auch nach Neustarts
+      // INSERT OR IGNORE verhindert doppelte Wünsche, auch nach Neustarts
       const claimed = await run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [
         guild.id,
         userId,
@@ -151,4 +120,10 @@ function startBirthdayRoleCheck(client) {
   setInterval(() => applyBirthdayRoles(client).catch(console.error), CHECK_INTERVAL_MS);
 }
 
-module.exports = { setBirthday, deleteBirthday, getBirthday, startBirthdayRoleCheck };
+module.exports = {
+  init,
+  setBirthday,
+  deleteBirthday,
+  getBirthday,
+  startBirthdayRoleCheck,
+};

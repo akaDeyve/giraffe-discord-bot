@@ -119,3 +119,22 @@ Konfiguration in `.env`:
 | `DASHBOARD_TOKEN` | Wenn gesetzt, brauchen alle API-Requests `Authorization: Bearer <Token>` | (leer = kein Schutz) |
 
 Für den Zugriff von außerhalb einen Reverse-Proxy (z. B. Nginx/Caddy) mit HTTPS vor das Dashboard schalten und `DASHBOARD_TOKEN` setzen.
+
+## Projektstruktur
+
+```
+index.js               Client, Intents, Loader für Commands/Events
+deploy-commands.js     Registriert alle Slash-Commands global
+commands/              Ein Command pro Datei (ai, birthday, image, ping, poll, websearch)
+events/                Ein Discord-Event pro Datei (interactionCreate, messageCreate, ready, voiceStateUpdate)
+src/
+  db.js                Einziger DB-Handle: run/get/all als Promises
+  activity.js          Nachrichten-/Voice-Tracking + daily_stats-Persistenz
+  birthdays.js         Geburtstags-Verwaltung, Rolle & Wünsche
+  ai.js                Mistral-API-Helfer (Agents, Konversationen, Kosten, Embeds)
+  dashboard.js         Web-Dashboard-Server (Status/Stats/Senden)
+  loaders.js           Lädt commands/ und events/ automatisch
+  public/index.html    Dashboard-Frontend
+```
+
+Regeln: neue Commands einfach als Datei in `commands/` ablegen (`data` + `execute`), neue Events in `events/` (`name` + `execute`, Client wird als letzter Parameter übergeben). Dashboard-Endpoints in `src/dashboard.js` erweitern.

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require("discord.js");
-const { setBirthday, deleteBirthday, getBirthday } = require("../../birthdayState");
+const { setBirthday, deleteBirthday, getBirthday } = require("../src/birthdays");
 
 function isValidDate(day, month, year) {
   const probe = new Date(year, month - 1, day);

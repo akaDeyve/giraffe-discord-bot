@@ -1,4 +1,3 @@
-const OpenAI = require("openai");
 const { EmbedBuilder } = require("discord.js");
 
 const API = "https://api.mistral.ai/v1";
@@ -8,12 +7,14 @@ const headers = () => ({
   Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
 });
 
-// OpenAI-kompatibler Client fuer Chat-Completions
-function chat() {
-  return new OpenAI({
-    baseURL: process.env.BASE_URL,
-    apiKey: process.env.MISTRAL_API_KEY,
+async function api(path, body) {
+  const res = await fetch(`${API}${path}`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
   });
+  if (!res.ok) throw new Error(`${path} fehlgeschlagen: ${res.status} ${await res.text()}`);
+  return res.json();
 }
 
 // Antworttext aus content extrahieren (String oder Chunk-Liste, thinking wird ignoriert)
@@ -25,49 +26,34 @@ function contentToText(content) {
     .join("");
 }
 
-// Agent per Name suchen, sonst anlegen - verhindert Agent-Duplikate
-async function getOrCreateAgent({ name, description, instructions, tools, model, completionArgs }) {
-  const listRes = await fetch(`${API}/agents`, { headers: headers() });
-  if (listRes.ok) {
-    const existing = (await listRes.json()).find((agent) => agent.name === name);
-    if (existing) return existing.id;
-  }
-
-  const res = await fetch(`${API}/agents`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({
-      name,
-      description,
-      instructions,
-      tools,
-      model,
-      ...(completionArgs && { completion_args: completionArgs }),
-    }),
-  });
-  if (!res.ok) throw new Error(`Agent-Erstellung fehlgeschlagen: ${res.status} ${await res.text()}`);
-  return (await res.json()).id;
-}
-
-// Agent-ID pro Namen cachen (ein API-Lookup pro Bot-Lauf)
+// Agent-ID pro Namen cachen – Agent per Name suchen, sonst anlegen (verhindert Duplikate)
 const agentIds = new Map();
 
-async function getAgent(config) {
-  if (!agentIds.has(config.name)) {
-    agentIds.set(config.name, await getOrCreateAgent(config));
+async function getAgent({ name, description, instructions, tools, model, completionArgs }) {
+  if (!agentIds.has(name)) {
+    const listRes = await fetch(`${API}/agents`, { headers: headers() });
+    const existing = listRes.ok ? (await listRes.json()).find((agent) => agent.name === name) : null;
+    agentIds.set(
+      name,
+      existing?.id ??
+        (
+          await api("/agents", {
+            name,
+            description,
+            instructions,
+            tools,
+            model,
+            ...(completionArgs && { completion_args: completionArgs }),
+          })
+        ).id,
+    );
   }
-  return agentIds.get(config.name);
+  return agentIds.get(name);
 }
 
-// Konversation starten, Outputs und Token-Nutzung zurueckgeben
+// Konversation starten, Outputs und Token-Nutzung zurückgeben
 async function runConversation(agentId, inputs) {
-  const res = await fetch(`${API}/conversations`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ agent_id: agentId, inputs }),
-  });
-  if (!res.ok) throw new Error(`Konversation fehlgeschlagen: ${res.status} ${await res.text()}`);
-  const body = await res.json();
+  const body = await api("/conversations", { agent_id: agentId, inputs });
   return { outputs: body.outputs ?? [], usage: body.usage };
 }
 
@@ -77,6 +63,18 @@ function getOutputText(outputs) {
     .filter((entry) => entry?.type === "message.output")
     .map((entry) => contentToText(entry.content))
     .join("\n");
+}
+
+// Tool-Ergebnisse aus den Outputs parsen (als JSON-Array zurückgeben)
+function getToolResults(outputs) {
+  const results = [];
+  for (const entry of outputs) {
+    if (entry?.type !== "tool.execution" || !entry.info?.result) continue;
+    try {
+      results.push(...[].concat(typeof entry.info.result === "string" ? JSON.parse(entry.info.result) : entry.info.result));
+    } catch {}
+  }
+  return results;
 }
 
 // Kosten aus der Token-Nutzung berechnen (Preise pro Mio. Tokens aus der env)
@@ -105,4 +103,4 @@ function buildEmbed(content, { model, totalCost, sources = [] }) {
   return new EmbedBuilder().setColor(0x5865f2).setDescription(description).setFooter({ text: footerText });
 }
 
-module.exports = { chat, contentToText, costOf, buildEmbed, getAgent, runConversation, getOutputText };
+module.exports = { contentToText, costOf, buildEmbed, getAgent, runConversation, getOutputText, getToolResults };
