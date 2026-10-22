@@ -125,6 +125,20 @@ function buildApp(client) {
     return embed;
   }
 
+  // Embed ohne sichtbaren Inhalt (kein Titel, Beschreibung, Felder, Bild, ...) von Discord abgelehnt
+  function embedHasContent(embed) {
+    return Boolean(
+      embed.data.title ||
+        embed.data.description ||
+        embed.data.fields?.length ||
+        embed.data.image ||
+        embed.data.thumbnail ||
+        embed.data.author ||
+        embed.data.footer ||
+        embed.data.timestamp,
+    );
+  }
+
   app.post("/api/send", async (req, res) => {
     const { channelId, content, embed: embedPayload, embeds, allowMentions } = req.body ?? {};
     const embedList = Array.isArray(embeds) ? embeds : embedPayload ? [embedPayload] : [];
@@ -142,14 +156,20 @@ function buildApp(client) {
       };
       if (content) payload.content = String(content).slice(0, 2000);
 
-      const builtEmbeds = embedList.map((embedData) => {
-        try {
-          return buildEmbedFromPayload(embedData);
-        } catch (error) {
-          throw new Error(`Ungültiges Embed: ${error.message}`);
-        }
-      });
-      if (builtEmbeds.length) payload.embeds = builtEmbeds.slice(0, 10);
+      const builtEmbeds = embedList
+        .map((embedData) => {
+          try {
+            return buildEmbedFromPayload(embedData);
+          } catch (error) {
+            throw new Error(`Ungültiges Embed: ${error.message}`);
+          }
+        })
+        .filter(embedHasContent)
+        .slice(0, 10);
+
+      if (!content && builtEmbeds.length === 0)
+        return res.status(400).json({ error: "content oder Embed mit Inhalt ist erforderlich" });
+      if (builtEmbeds.length) payload.embeds = builtEmbeds;
 
       const message = await channel.send(payload);
       res.json({ success: true, messageId: message.id, channelId });
