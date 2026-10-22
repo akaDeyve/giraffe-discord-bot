@@ -57,6 +57,10 @@
   .embedPreview .epFooter { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 12px; }
   .embedPreview .epFooter img { width: 18px; height: 18px; border-radius: 50%; }
   .embedPreview .epThumb { float: right; margin-left: 12px; max-width: 70px; max-height: 70px; border-radius: 4px; }
+  .btnRow { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-bottom: 8px; align-items: end; }
+  .btnRow input { margin-bottom: 0; }
+  .btnPreview { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .btnPreview a { display: inline-block; padding: 8px 16px; background: #4e5058; color: #fff; border-radius: 4px; font-size: 14px; font-weight: 500; text-decoration: none; }
 </style>
 </head>
 <body>
@@ -135,6 +139,10 @@
         <button type="button" id="addFieldBtn" style="background:var(--panel);color:var(--text);border:1px solid var(--border);margin-bottom:12px">+ Feld hinzufügen</button>
       </div>
 
+      <h3 style="margin:16px 0 8px;font-size:14px;color:var(--muted)">Link-Buttons</h3>
+      <div id="buttonRows"></div>
+      <button type="button" id="addButtonBtn" style="background:var(--panel);color:var(--text);border:1px solid var(--border);margin-bottom:12px">+ Button hinzufügen</button>
+
       <div class="check"><input type="checkbox" id="allowMentions"> <label for="allowMentions">@everyone / Rollen-Pings erlauben</label></div>
       <button id="sendBtn">Senden</button>
       <div class="msg" id="sendMsg"></div>
@@ -208,6 +216,8 @@ async function loadBirthdays() {
 }
 
 let embedEnabled = false;
+// Buttons in Reihen à 5 gruppieren (Discord-Limit: max 5 Buttons pro Reihe)
+const chunk5 = (arr) => arr.length ? [arr.slice(0, 5), ...chunk5(arr.slice(5))] : [];
 const fieldCount = () => document.querySelectorAll(".fieldRow").length;
 
 function collectEmbed() {
@@ -253,6 +263,9 @@ function renderPreview() {
     if (embed.footer || embed.timestamp) html += `<div class="epFooter">${embed.footer?.iconUrl ? `<img src="${esc(embed.footer.iconUrl)}">` : ""}<span>${esc(embed.footer?.text || "")}${embed.timestamp ? ` – ${new Date(embed.timestamp).toLocaleString("de-DE")}` : ""}</span></div>`;
     html += "</div>";
   }
+  const buttons = collectButtons();
+  if (buttons.length) html += `<div class="btnPreview">${buttons.map((b) =>
+    `<a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.label)}</a>`).join("")}</div>`;
   box.innerHTML = html;
 }
 
@@ -282,6 +295,26 @@ function addFieldRow() {
   row.querySelector(".fInline").addEventListener("change", renderPreview);
   $("#embedFields").appendChild(row);
 }
+
+function addButtonRow(label = "", url = "") {
+  const row = document.createElement("div");
+  row.className = "btnRow";
+  row.innerHTML = `
+    <input class="bLabel" placeholder="Label (z. B. Website)" maxlength="80" value="${label}">
+    <input class="bUrl" placeholder="https://..." value="${url}">
+    <button type="button" class="mini" style="background:var(--panel);color:var(--text);border:1px solid var(--border)">✕</button>`;
+  row.querySelector("button").addEventListener("click", () => { row.remove(); renderPreview(); });
+  row.querySelectorAll("input").forEach((i) => i.addEventListener("input", renderPreview));
+  $("#buttonRows").appendChild(row);
+}
+
+function collectButtons() {
+  return [...document.querySelectorAll("#buttonRows .btnRow")]
+    .map((row) => ({ label: row.querySelector(".bLabel").value.trim(), url: row.querySelector(".bUrl").value.trim() }))
+    .filter((b) => b.label && b.url);
+}
+
+$("#addButtonBtn").addEventListener("click", () => addButtonRow());
 
 $("#embedToggle").addEventListener("click", () => {
   embedEnabled = !embedEnabled;
@@ -320,6 +353,7 @@ $("#sendBtn").addEventListener("click", async () => {
         channelId: $("#channelId").value,
         content: $("#content").value.trim() || null,
         embed,
+        buttons: chunk5(collectButtons()),
         allowMentions: $("#allowMentions").checked,
       }),
     });

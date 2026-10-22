@@ -1,8 +1,26 @@
 const path = require("node:path");
 const express = require("express");
-const { ActivityType, ChannelType, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
-const { currentDay } = require("./activity");
-const { all } = require("./db");
+const { ActivityType, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { all, get, run } = require("./db");
+
+const isoDate = () => new Date().toISOString().slice(0, 10);
+
+// Liefert die Stats des heutigen Tages; legt die Tabelle on-demand an,
+// falls das Tracking noch nicht gelaufen ist (z. B. Dashboard vor erstem Track-Aufruf).
+function todayStats() {
+  const today = isoDate();
+  const fallback = { date: today, messages: 0, voiceSeconds: 0 };
+  try {
+    return get("SELECT date, messages, voice_seconds AS voiceSeconds FROM daily_stats WHERE date = ?", [today]) ?? fallback;
+  } catch {
+    run(`CREATE TABLE IF NOT EXISTS daily_stats (
+      date TEXT PRIMARY KEY,
+      messages INTEGER NOT NULL DEFAULT 0,
+      voice_seconds INTEGER NOT NULL DEFAULT 0
+    )`);
+    return fallback;
+  }
+}
 
 const PORT = Number(process.env.DASHBOARD_PORT) || 8080;
 const HOST = process.env.DASHBOARD_HOST || "127.0.0.1";
@@ -59,7 +77,7 @@ function statusRoute(client) {
         users: client.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0),
         channels: client.channels.cache.size,
       },
-      today: currentDay,
+      today: todayStats(),
     });
   };
 }
@@ -139,13 +157,35 @@ function buildApp(client) {
     );
   }
 
+  // Link-Buttons aus dem Dashboard: alle flach sammeln, dann in Reihen à max. 5,
+  // max. 25 Buttons (Discord-Limit: 5 Reihen à 5 Buttons pro Message)
+  function buildButtonsFromPayload(buttonsPayload) {
+    const all = buttonsPayload
+      .flatMap((row) => (Array.isArray(row) ? row : [row]))
+      .filter((button) => button?.label && button?.url)
+      .map((button) =>
+        new ButtonBuilder()
+          .setLabel(String(button.label).slice(0, 80))
+          .setStyle(ButtonStyle.Link)
+          .setURL(button.url),
+      )
+      .slice(0, 25);
+
+    const rows = [];
+    for (let i = 0; i < all.length; i += 5) {
+      rows.push(new ActionRowBuilder().setComponents(all.slice(i, i + 5)));
+    }
+    return rows;
+  }
+
   app.post("/api/send", async (req, res) => {
-    const { channelId, content, embed: embedPayload, embeds, allowMentions } = req.body ?? {};
+    const { channelId, content, embed: embedPayload, embeds, buttons, allowMentions } = req.body ?? {};
+    const buttonList = Array.isArray(buttons) ? buttons : [];
     const embedList = Array.isArray(embeds) ? embeds : embedPayload ? [embedPayload] : [];
 
     if (!channelId) return res.status(400).json({ error: "channelId ist erforderlich" });
-    if (!content && embedList.length === 0)
-      return res.status(400).json({ error: "content oder embed ist erforderlich" });
+    if (!content && embedList.length === 0 && buttonList.length === 0)
+      return res.status(400).json({ error: "content, embed oder buttons sind erforderlich" });
 
     try {
       const channel = await client.channels.fetch(channelId);
@@ -167,9 +207,12 @@ function buildApp(client) {
         .filter(embedHasContent)
         .slice(0, 10);
 
-      if (!content && builtEmbeds.length === 0)
-        return res.status(400).json({ error: "content oder Embed mit Inhalt ist erforderlich" });
+      const buttonRows = buildButtonsFromPayload(buttonList);
+
+      if (!content && builtEmbeds.length === 0 && buttonRows.length === 0)
+        return res.status(400).json({ error: "content, Embed mit Inhalt oder Buttons sind erforderlich" });
       if (builtEmbeds.length) payload.embeds = builtEmbeds;
+      if (buttonRows.length) payload.components = buttonRows;
 
       const message = await channel.send(payload);
       res.json({ success: true, messageId: message.id, channelId });
