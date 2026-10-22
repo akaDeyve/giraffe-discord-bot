@@ -79,11 +79,11 @@ function getToolResults(outputs) {
 
 // Kosten aus der Token-Nutzung berechnen (Preise pro Mio. Tokens aus der env)
 function costOf(usage) {
-  const { prompt_tokens: promptTokens, completion_tokens: completionTokens } = usage ?? {};
-  return (
-    (promptTokens / 1000000) * (process.env.PRICE_PER_MIO_INPUT_TOKENS ?? 0) +
-    (completionTokens / 1000000) * (process.env.PRICE_PER_MIO_OUTPUT_TOKENS ?? 0)
-  );
+  const promptTokens = usage?.prompt_tokens ?? 0;
+  const completionTokens = usage?.completion_tokens ?? 0;
+  const inputPrice = Number(process.env.PRICE_PER_MIO_INPUT_TOKENS) || 0;
+  const outputPrice = Number(process.env.PRICE_PER_MIO_OUTPUT_TOKENS) || 0;
+  return (promptTokens / 1000000) * inputPrice + (completionTokens / 1000000) * outputPrice;
 }
 
 // Einheitliches Antwort-Embed mit Quellen, Kosten und Datenschutz-Link
@@ -92,13 +92,16 @@ function buildEmbed(content, { model, totalCost, sources = [] }) {
     ? `\n\n**Quellen:**\n${sources.map((url, i) => `[${i + 1}] ${url}`).join("\n")}`
     : "";
 
+  const privacyBlock = process.env.PROVIDER_PRIVACY
+    ? `\n\n[Datenschutzrichtlinie](${process.env.PROVIDER_PRIVACY})`
+    : "";
+
   const description =
-    `**${(content || "Keine Antwort erhalten.").slice(0, 3500)}**${sourcesBlock}`.slice(0, 4000) +
-    `\n\n[Datenschutzrichtlinie](${process.env.PROVIDER_PRIVACY})`;
+    (`**${(content || "Keine Antwort erhalten.").slice(0, 3500)}**${sourcesBlock}`).slice(0, 4000) + privacyBlock;
 
   const footerText = totalCost > 0
-    ? `Modell: ${model} • Kosten: $${totalCost.toFixed(5)} \n${process.env.PROVIDER}`
-    : `Modell: ${model} • Provided by ${process.env.PROVIDER}`;
+    ? `Modell: ${model} • Kosten: $${totalCost.toFixed(5)}${process.env.PROVIDER ? ` \n${process.env.PROVIDER}` : ""}`
+    : `Modell: ${model}${process.env.PROVIDER ? ` • Provided by ${process.env.PROVIDER}` : ""}`;
 
   return new EmbedBuilder().setColor(0x5865f2).setDescription(description).setFooter({ text: footerText });
 }

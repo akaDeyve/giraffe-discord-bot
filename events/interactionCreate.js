@@ -11,8 +11,10 @@ module.exports = {
     if (!command) return;
 
     const { cooldowns } = interaction.client;
+    // Cooldown pro User UND Command – sonst blockiert /ping alle anderen Commands
+    const cooldownKey = `${interaction.user.id}:${command.data.name}`;
     const cooldownMs = (command.cooldown ?? DEFAULT_COOLDOWN_SECONDS) * 1000;
-    const expiresAt = (cooldowns.get(interaction.user.id) ?? 0) + cooldownMs;
+    const expiresAt = (cooldowns.get(cooldownKey) ?? 0) + cooldownMs;
 
     if (Date.now() < expiresAt) {
       return interaction.reply({
@@ -21,8 +23,8 @@ module.exports = {
       });
     }
 
-    cooldowns.set(interaction.user.id, Date.now());
-    setTimeout(() => cooldowns.delete(interaction.user.id), cooldownMs);
+    cooldowns.set(cooldownKey, Date.now());
+    setTimeout(() => cooldowns.delete(cooldownKey), cooldownMs);
 
     try {
       await command.execute(interaction);

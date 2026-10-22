@@ -1,24 +1,28 @@
 const { PermissionFlagsBits } = require("discord.js");
-const { run, get, all } = require("./db");
+const { run, get, all, db } = require("./db");
 
 const birthdayRoleId = () => process.env.BIRTHDAY_ROLE_ID || "";
 const WISH_HOUR = 12; // einmal täglich um 12:00 Uhr prüfen und auslösen
+const isoDate = () => new Date().toISOString().slice(0, 10);
 
 function init() {
-  run(`CREATE TABLE IF NOT EXISTS birthdays (
-    guild_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    day INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    year INTEGER,
-    PRIMARY KEY (guild_id, user_id)
-  )`);
-  run(`CREATE TABLE IF NOT EXISTS birthday_wishes (
-    guild_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    date TEXT NOT NULL,
-    PRIMARY KEY (guild_id, user_id, date)
-  )`);
+  // node:sqlite: prepare() erlaubt nur EIN Statement – Schema via exec()
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS birthdays (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      day INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      year INTEGER,
+      PRIMARY KEY (guild_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS birthday_wishes (
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      PRIMARY KEY (guild_id, user_id, date)
+    );
+  `);
 }
 
 function setBirthday(guildId, userId, day, month, year) {
@@ -41,7 +45,8 @@ function getBirthday(guildId, userId) {
 function findWishChannel(guild) {
   const me = guild.members.me;
   const canSend = (channel) =>
-    channel?.isTextBased() && channel.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages);
+    channel?.isTextBased() &&
+    channel.permissionsFor(me)?.has(PermissionFlagsBits.SendMessages, false);
   return canSend(guild.systemChannel) ? guild.systemChannel : guild.channels.cache.find(canSend);
 }
 
@@ -59,7 +64,6 @@ async function sendBirthdayWish(guild, member, age) {
 // Einmal täglich um WISH_HOUR: Geburtstags-Rolle setzen/entfernen und wünschen
 async function checkBirthdays(client) {
   const now = new Date();
-  const today = now.toLocaleDateString();
   const birthdays = all("SELECT * FROM birthdays");
 
   for (const guild of client.guilds.cache.values()) {
@@ -94,13 +98,13 @@ async function checkBirthdays(client) {
       if (!member) continue;
 
       // INSERT OR IGNORE verhindert doppelte Wünsche, auch nach Neustarts
-      const { changes } = run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [guild.id, userId, today]);
+      const { changes } = run("INSERT OR IGNORE INTO birthday_wishes VALUES (?, ?, ?)", [guild.id, userId, isoDate()]);
       if (!changes) continue;
 
       try {
         await sendBirthdayWish(guild, member, year ? now.getFullYear() - year : null);
       } catch (err) {
-        run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [guild.id, userId, today]);
+        run("DELETE FROM birthday_wishes WHERE guild_id = ? AND user_id = ? AND date = ?", [guild.id, userId, isoDate()]);
         console.error(`Geburtstagswunsch fehlgeschlagen (${member.user.tag}): ${err.message}`);
       }
     }
@@ -114,9 +118,9 @@ function startBirthdayScheduler(client) {
   const tick = () => {
     const now = new Date();
     const due = now.getHours() >= WISH_HOUR;
-    if (!due || lastRunDate === now.toLocaleDateString()) return;
+    if (!due || lastRunDate === isoDate()) return;
 
-    lastRunDate = now.toLocaleDateString();
+    lastRunDate = isoDate();
     checkBirthdays(client).catch(console.error);
   };
 

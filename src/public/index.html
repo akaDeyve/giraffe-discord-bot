@@ -38,6 +38,25 @@
   nav { display: flex; gap: 8px; padding: 0 24px; }
   nav a { color: var(--muted); text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
   nav a.active, nav a:hover { color: var(--text); background: var(--panel); }
+  .lbl { color: var(--muted); font-size: 13px; display: block; margin-bottom: 4px; }
+  .fieldRow { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; margin-bottom: 8px; align-items: end; }
+  .fieldRow input { margin-bottom: 0; }
+  .fieldRow .check { margin: 0 0 10px; }
+  .mini { padding: 8px 10px; }
+  .embedPreview { border-left: 4px solid var(--accent); padding: 12px 16px; background: #0f1113; border-radius: 4px; max-width: 520px; }
+  .embedPreview .epTitle { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+  .embedPreview .epAuthor { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .embedPreview .epAuthor img { width: 20px; height: 20px; border-radius: 50%; }
+  .embedPreview .epDesc { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .embedPreview .epFields { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .embedPreview .epField { flex: 1 1 45%; min-width: 160px; }
+  .embedPreview .epField.inline { flex: 1 1 30%; }
+  .embedPreview .epFieldName { font-weight: 700; font-size: 13px; }
+  .embedPreview .epFieldValue { font-size: 13px; }
+  .embedPreview .epImg { max-width: 100%; margin-top: 10px; border-radius: 4px; }
+  .embedPreview .epFooter { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .embedPreview .epFooter img { width: 18px; height: 18px; border-radius: 50%; }
+  .embedPreview .epThumb { float: right; margin-left: 12px; max-width: 70px; max-height: 70px; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -79,15 +98,50 @@
     </div>
   </section>
   <section id="view-send" hidden>
-    <div class="card" style="max-width:640px">
+    <div class="card" style="max-width:760px">
       <h2>Nachricht als Bot senden</h2>
-      <label style="color:var(--muted);font-size:13px">Channel-ID</label>
-      <input id="channelId" placeholder="z. B. 1234567890123456789">
-      <label style="color:var(--muted);font-size:13px">Nachricht (max. 2000 Zeichen)</label>
+      <label style="color:var(--muted);font-size:13px">Channel</label>
+      <select id="channelId"></select>
+
+      <label style="color:var(--muted);font-size:13px">Nachrichtentext (optional, max. 2000 Zeichen)</label>
       <textarea id="content" maxlength="2000" placeholder="Hallo vom Dashboard!"></textarea>
+
+      <h3 style="margin:16px 0 8px;font-size:14px;color:var(--muted)">Embed</h3>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <input type="color" id="embedColor" value="#5865f2" style="width:60px;padding:2px;margin:0">
+        <button type="button" id="embedToggle" style="background:var(--panel);color:var(--text);border:1px solid var(--border)">Embed aktivieren</button>
+      </div>
+      <div id="embedEditor" hidden style="margin-top:12px">
+        <label class="lbl">Titel (max. 256)</label>
+        <input id="embedTitle" maxlength="256" placeholder="Embed-Titel">
+        <label class="lbl">Beschreibung (max. 4096)</label>
+        <textarea id="embedDescription" maxlength="4096" placeholder="Embed-Text ... unterstützt **Markdown**, [Links](https://example.com) und Zeilenumbrüche"></textarea>
+        <div class="row" style="gap:12px">
+          <div style="flex:1"><label class="lbl">Thumbnail-URL</label><input id="embedThumbnail" placeholder="https://..."></div>
+          <div style="flex:1"><label class="lbl">Bild-URL</label><input id="embedImage" placeholder="https://..."></div>
+        </div>
+        <div class="row" style="gap:12px">
+          <div style="flex:1"><label class="lbl">Autor-Name</label><input id="embedAuthorName" placeholder="Autor"></div>
+          <div style="flex:1"><label class="lbl">Autor-Icon-URL</label><input id="embedAuthorIcon" placeholder="https://..."></div>
+        </div>
+        <div class="row" style="gap:12px">
+          <div style="flex:1"><label class="lbl">Footer-Text</label><input id="embedFooterText" placeholder="Footer"></div>
+          <div style="flex:1"><label class="lbl">Footer-Icon-URL</label><input id="embedFooterIcon" placeholder="https://..."></div>
+        </div>
+        <div class="check" style="margin-top:8px"><input type="checkbox" id="embedTimestamp"> <label for="embedTimestamp">Zeitstempel anzeigen</label></div>
+
+        <h3 style="margin:12px 0 8px;font-size:14px;color:var(--muted)">Felder</h3>
+        <div id="embedFields"></div>
+        <button type="button" id="addFieldBtn" style="background:var(--panel);color:var(--text);border:1px solid var(--border);margin-bottom:12px">+ Feld hinzufügen</button>
+      </div>
+
       <div class="check"><input type="checkbox" id="allowMentions"> <label for="allowMentions">@everyone / Rollen-Pings erlauben</label></div>
       <button id="sendBtn">Senden</button>
       <div class="msg" id="sendMsg"></div>
+    </div>
+    <div class="card" style="max-width:760px">
+      <h2>Vorschau</h2>
+      <div id="preview"></div>
     </div>
   </section>
 </main>
@@ -153,20 +207,124 @@ async function loadBirthdays() {
     : "<tr><td colspan='4'>Keine Einträge</td></tr>";
 }
 
+let embedEnabled = false;
+const fieldCount = () => document.querySelectorAll(".fieldRow").length;
+
+function collectEmbed() {
+  if (!embedEnabled) return null;
+  const fields = [...document.querySelectorAll(".fieldRow")].map((row) => ({
+    name: row.querySelector(".fName").value.trim(),
+    value: row.querySelector(".fValue").value.trim(),
+    inline: row.querySelector(".fInline").checked,
+  })).filter((f) => f.name && f.value);
+  const embed = {
+    color: $("#embedColor").value,
+    fields,
+    timestamp: $("#embedTimestamp").checked ? new Date().toISOString() : null,
+  };
+  const val = (id) => $(id).value.trim();
+  if (val("#embedTitle")) embed.title = val("#embedTitle");
+  if (val("#embedDescription")) embed.description = val("#embedDescription");
+  if (val("#embedThumbnail")) embed.thumbnailUrl = val("#embedThumbnail");
+  if (val("#embedImage")) embed.imageUrl = val("#embedImage");
+  if (val("#embedAuthorName")) embed.author = { name: val("#embedAuthorName"), ...(val("#embedAuthorIcon") && { iconUrl: val("#embedAuthorIcon") }) };
+  if (val("#embedFooterText")) embed.footer = { text: val("#embedFooterText"), ...(val("#embedFooterIcon") && { iconUrl: val("#embedFooterIcon") }) };
+  return embed;
+}
+
+function renderPreview() {
+  const embed = collectEmbed();
+  const text = $("#content").value;
+  const box = $("#preview");
+  if (!embed && !text) { box.innerHTML = "<div class='label' style='color:var(--muted)'>Noch nichts eingegeben</div>"; return; }
+  let html = text ? `<div style="margin-bottom:10px">${md(text)}</div>` : "";
+  if (embed) {
+    const color = embed.color || "#5865f2";
+    const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    const mdLite = (t) => md(esc(t));
+    html += `<div class="embedPreview" style="border-left-color:${color}">`;
+    if (embed.author) html += `<div class="epAuthor">${embed.author.iconUrl ? `<img src="${esc(embed.author.iconUrl)}">` : ""}<span>${esc(embed.author.name)}</span></div>`;
+    if (embed.thumbnailUrl) html += `<img class="epThumb" src="${esc(embed.thumbnailUrl)}">`;
+    if (embed.title) html += `<div class="epTitle">${mdLite(embed.title)}</div>`;
+    if (embed.description) html += `<div class="epDesc">${mdLite(embed.description)}</div>`;
+    if (embed.fields?.length) html += `<div class="epFields">${embed.fields.map((f) =>
+      `<div class="epField ${f.inline ? "inline" : ""}"><div class="epFieldName">${mdLite(f.name)}</div><div class="epFieldValue">${mdLite(f.value)}</div></div>`).join("")}</div>`;
+    if (embed.imageUrl) html += `<img class="epImg" src="${esc(embed.imageUrl)}">`;
+    if (embed.footer || embed.timestamp) html += `<div class="epFooter">${embed.footer?.iconUrl ? `<img src="${esc(embed.footer.iconUrl)}">` : ""}<span>${esc(embed.footer?.text || "")}${embed.timestamp ? ` – ${new Date(embed.timestamp).toLocaleString("de-DE")}` : ""}</span></div>`;
+    html += "</div>";
+  }
+  box.innerHTML = html;
+}
+
+// Sehr kleines Markdown-Subset passend zu Discord: **fett**, *kursiv*, __underline__, ~~strike~~, `code`, [link](url)
+function md(text) {
+  return text
+    .replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c])
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\*([^*]+)\*/g, "<i>$1</i>")
+    .replace(/__([^_]+)__/g, "<u>$1</u>")
+    .replace(/~~([^~]+)~~/g, "<s>$1</s>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>')
+    .replace(/\n/g, "<br>");
+}
+
+function addFieldRow() {
+  const row = document.createElement("div");
+  row.className = "fieldRow";
+  row.innerHTML = `
+    <input class="fName" placeholder="Feld-Name" maxlength="256">
+    <input class="fValue" placeholder="Feld-Wert" maxlength="1024">
+    <div class="check"><input type="checkbox" class="fInline" checked> <label>Inline</label></div>
+    <button type="button" class="mini" style="background:var(--panel);color:var(--text);border:1px solid var(--border)">✕</button>`;
+  row.querySelector("button").addEventListener("click", () => { row.remove(); renderPreview(); });
+  row.querySelectorAll("input").forEach((i) => i.addEventListener("input", renderPreview));
+  row.querySelector(".fInline").addEventListener("change", renderPreview);
+  $("#embedFields").appendChild(row);
+}
+
+$("#embedToggle").addEventListener("click", () => {
+  embedEnabled = !embedEnabled;
+  $("#embedEditor").hidden = !embedEnabled;
+  $("#embedToggle").textContent = embedEnabled ? "Embed deaktivieren" : "Embed aktivieren";
+  renderPreview();
+});
+$("#addFieldBtn").addEventListener("click", () => { addFieldRow(); renderPreview(); });
+
+["#embedTitle", "#embedDescription", "#embedThumbnail", "#embedImage", "#embedAuthorName", "#embedAuthorIcon", "#embedFooterText", "#embedFooterIcon", "#content"].forEach((sel) =>
+  $(sel).addEventListener("input", renderPreview));
+$("#embedColor").addEventListener("input", renderPreview);
+$("#embedTimestamp").addEventListener("change", renderPreview);
+
+async function loadChannels() {
+  const sel = $("#channelId");
+  sel.innerHTML = "<option>Lädt…</option>";
+  try {
+    const channels = await (await api("/api/channels")).json();
+    if (!Array.isArray(channels) || !channels.length) { sel.innerHTML = "<option value=''>Keine sendeberechtigten Kanäle gefunden</option>"; return; }
+    const groups = {};
+    for (const c of channels) (groups[c.guildName] ??= []).push(c);
+    sel.innerHTML = Object.entries(groups).map(([guild, chans]) =>
+      `<optgroup label="${guild}">` + chans.map((c) => `<option value="${c.id}">#${c.name}</option>`).join("") + "</optgroup>").join("");
+  } catch (e) { sel.innerHTML = "<option value=''>Fehler beim Laden</option>"; }
+}
+
 $("#sendBtn").addEventListener("click", async () => {
   const btn = $("#sendBtn"), msg = $("#sendMsg");
   btn.disabled = true; msg.textContent = ""; msg.className = "msg";
   try {
+    const embed = collectEmbed();
     const res = await api("/api/send", {
       method: "POST",
       body: JSON.stringify({
-        channelId: $("#channelId").value.trim(),
-        content: $("#content").value,
+        channelId: $("#channelId").value,
+        content: $("#content").value.trim() || null,
+        embed,
         allowMentions: $("#allowMentions").checked,
       }),
     });
     const data = await res.json();
-    if (res.ok) { msg.textContent = `Gesendet (Message-ID ${data.messageId})`; msg.classList.add("ok"); $("#content").value = ""; }
+    if (res.ok) { msg.textContent = `Gesendet (Message-ID ${data.messageId})`; msg.classList.add("ok"); $("#content").value = ""; renderPreview(); }
     else { msg.textContent = data.error || "Fehler"; msg.classList.add("err"); }
   } catch (e) { msg.textContent = e.message; msg.classList.add("err"); }
   btn.disabled = false;
@@ -180,6 +338,7 @@ document.querySelectorAll("nav a").forEach((a) => a.addEventListener("click", (e
 }));
 
 loadStatus();
+loadChannels();
 loadStats();
 loadBirthdays();
 setInterval(loadStatus, 10000);

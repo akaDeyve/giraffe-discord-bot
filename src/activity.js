@@ -1,8 +1,11 @@
 const { run, get } = require("./db");
 
+// YYYY-MM-DD – stabil (nicht locale-abhängig) und sortierbar
+const isoDate = () => new Date().toISOString().slice(0, 10);
+
 // Aktuelle Tagesaktivität (runtime state, alle 20 s in die DB persistiert)
 const currentDay = {
-  date: new Date().toLocaleDateString(),
+  date: isoDate(),
   voiceSeconds: 0,
   messages: 0,
 };
@@ -32,9 +35,10 @@ function seedVoiceTracking(client) {
   }
 }
 
-// Tageswechsel prüfen – wird vor Mutationen und im Speicher-Intervall aufgerufen
+// Tageswechsel prüfen – wird vor Mutationen und im Speicher-Intervall aufgerufen.
+// Wichtig: erst persistieren (noch unter dem alten Datum), dann Datum und Zähler zurücksetzen.
 function checkDayChange() {
-  const today = new Date().toLocaleDateString();
+  const today = isoDate();
   if (currentDay.date === today) return;
 
   persistStats();
@@ -52,12 +56,12 @@ function persistStats() {
   );
 }
 
-// Alle 20 Sekunden: Personen im Voice * 20 s zu heute addieren und persistieren
+// Alle 20 Sekunden: Tageswechsel prüfen, dann Personen im Voice * 20 s addieren und persistieren
 function startTracking() {
   init();
   setInterval(() => {
-    currentDay.voiceSeconds += humansInVoice() * 20;
     checkDayChange();
+    currentDay.voiceSeconds += humansInVoice() * 20;
     persistStats();
   }, 20 * 1000);
 }
