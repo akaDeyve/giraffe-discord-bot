@@ -1,3 +1,12 @@
+node_modules/
 .env
-/node_modules
+
+# SQLite database (runtime data)
 database.db
+database.db-shm
+database.db-wal
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db

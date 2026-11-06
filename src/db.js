@@ -1,7 +1,7 @@
 const { DatabaseSync } = require("node:sqlite");
 const path = require("node:path");
 
-const db = new DatabaseSync(path.join(__dirname, "..", "database.db"));
+const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, "..", "database.db"));
 db.exec("PRAGMA journal_mode = WAL;");
 
 // node:sqlite bindet im Gegensatz zu better-sqlite3 weder booleans noch undefined.

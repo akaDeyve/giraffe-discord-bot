@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
 const OpenAI = require("openai");
-const { contentToText, costOf, buildEmbed } = require("../src/ai");
+const { contentToText, costOf, buildEmbed } = require("../ai");
 
 module.exports = {
   cooldown: 5,

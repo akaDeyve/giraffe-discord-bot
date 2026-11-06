@@ -1,7 +1,7 @@
 const { Events } = require("discord.js");
-const { seedVoiceTracking } = require("../src/activity");
-const { init: initBirthdays, startBirthdayScheduler } = require("../src/birthdays");
-const { startDashboard } = require("../src/dashboard");
+const { seedVoiceTracking } = require("../activity");
+const { init: initBirthdays, startBirthdayScheduler } = require("../birthdays");
+const { startDashboard } = require("../dashboard");
 
 module.exports = {
   name: Events.ClientReady,

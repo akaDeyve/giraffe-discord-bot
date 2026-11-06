@@ -1,6 +1,6 @@
 // Voice-Tracking: zählt anonym nur, wie viele Menschen pro Channel im Voice sind (keine User-IDs)
 const { Events } = require("discord.js");
-const { channelHumans } = require("../src/activity");
+const { channelHumans } = require("../activity");
 
 module.exports = {
   name: Events.VoiceStateUpdate,

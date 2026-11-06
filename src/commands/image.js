@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { getAgent, runConversation, getOutputText, getToolResults, costOf, buildEmbed } = require("../src/ai");
+const { getAgent, runConversation, getOutputText, getToolResults, costOf, buildEmbed } = require("../ai");
 
 const MODEL = () => process.env.IMAGE_MODEL ?? "mistral-medium-3-5";
 

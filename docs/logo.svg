@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Giraffe logo">
+  <!-- Discord-blurple tile -->
+  <rect width="128" height="128" rx="28" fill="#5865F2"/>
+  <!-- neck -->
+  <path d="M50 74 L46 128 H82 L76 74 Z" fill="#F4B942"/>
+  <circle cx="58" cy="100" r="6" fill="#B5651D"/>
+  <circle cx="70" cy="116" r="5" fill="#B5651D"/>
+  <circle cx="72" cy="88" r="4" fill="#B5651D"/>
+  <!-- ossicones -->
+  <rect x="47" y="18" width="6" height="20" rx="3" fill="#B5651D"/>
+  <rect x="73" y="18" width="6" height="20" rx="3" fill="#B5651D"/>
+  <circle cx="50" cy="18" r="6" fill="#7A3E10"/>
+  <circle cx="76" cy="18" r="6" fill="#7A3E10"/>
+  <!-- ears -->
+  <ellipse cx="36" cy="44" rx="11" ry="6" transform="rotate(-25 36 44)" fill="#F4B942"/>
+  <ellipse cx="90" cy="44" rx="11" ry="6" transform="rotate(25 90 44)" fill="#F4B942"/>
+  <!-- head -->
+  <path d="M42 46 C42 32 84 32 84 46 L82 70 C80 84 46 84 44 70 Z" fill="#F4B942"/>
+  <circle cx="74" cy="48" r="4" fill="#B5651D"/>
+  <!-- snout -->
+  <ellipse cx="63" cy="72" rx="17" ry="11" fill="#E9A23B"/>
+  <circle cx="57" cy="72" r="2.2" fill="#7A3E10"/>
+  <circle cx="69" cy="72" r="2.2" fill="#7A3E10"/>
+  <!-- eyes -->
+  <circle cx="53" cy="54" r="4.5" fill="#1E1F22"/>
+  <circle cx="73" cy="56" r="4.5" fill="#1E1F22"/>
+  <circle cx="54.5" cy="52.5" r="1.4" fill="#fff"/>
+  <circle cx="74.5" cy="54.5" r="1.4" fill="#fff"/>
+</svg>

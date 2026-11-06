@@ -1,45 +1,83 @@
-# Giraffe - Discord AI Bot
+<p align="center">
+  <img src="docs/logo.svg" width="120" alt="Giraffe logo">
+</p>
 
-A Discord bot with a Mistral AI-powered `/ai` command and daily activity tracking, built on **discord.js v14**.
+<h1 align="center">Giraffe</h1>
+
+<p align="center">
+  <b>A Discord bot with Mistral AI commands and a web dashboard.</b><br>
+  AI · Web search · Images · Polls · Birthdays · Activity stats
+</p>
+
+<p align="center">
+  <img alt="Version 1.3.0 beta" src="https://img.shields.io/badge/version-1.3.0--beta-yellow">
+  <img alt="discord.js 14" src="https://img.shields.io/badge/discord.js-14-5865F2?logo=discord&logoColor=white">
+  <img alt="Node.js 22.13+" src="https://img.shields.io/badge/node-%E2%89%A522.13-339933?logo=nodedotjs&logoColor=white">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+</p>
+
+<p align="center"><b>English</b> · <a href="README.de.md">Deutsch</a></p>
+
+> **Beta:** runs in daily use on our server; details may still change.
 
 ## Features
 
-- `/ai <prompt>` - ask Mistral Large 4, cost per request shown in the footer
-- `/websearch <question>` - answer with live web search, sources included
-- `/image <prompt>` - generate an image via a Mistral image agent
-- `/poll <question> <options>` - create a native Discord poll (2-10 comma-separated options, optional multiselect, runs 24 h)
-- `/ping` - latency check
+- `/ai <prompt>` – ask Mistral Large 4, cost per request shown in the footer
+- `/websearch <question>` – answer with live web search, sources included
+- `/image <prompt>` – generate an image via a Mistral image agent
+- `/poll <question> <options>` – create a native Discord poll (2–10 comma-separated options, optional multiselect, runs 24 h)
+- `/birthday` – set, show or delete your birthday
+- `/ping` – latency check
 - Daily message and voice activity tracking, stored in SQLite (anonymized: no user IDs, just per-channel human counts)
 - Birthday scheduler: checks once daily at 12:00 (catches up if the bot was offline), role from `BIRTHDAY_ROLE_ID`
 - Auto-role for new members via `AUTO_ROLE_ID`
+- Web dashboard: bot status, statistics, birthdays, send messages as the bot
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env   # fill in your values
-node deploy-commands.js
-node index.js
+npm run deploy         # register slash commands (once, and after command changes)
+npm start
 ```
 
-Docker: `docker compose up -d` (reads `.env` via `env_file`).
+Docker: `docker compose up -d` (reads `.env` via `env_file`, dashboard on host port `8081`).
 
 ## Configuration (`.env`)
 
-| Variable | Description | Example |
+| Variable | Description | Example / default |
 |---|---|---|
-| `TOKEN` | Discord bot token | ... |
-| `MISTRAL_API_KEY` | API key from [console.mistral.ai](https://console.mistral.ai) | ... |
+| `TOKEN` | Discord bot token | … |
+| `MISTRAL_API_KEY` | API key from [console.mistral.ai](https://console.mistral.ai) | … |
 | `BASE_URL` | API base URL | `https://api.mistral.ai/v1` |
-| `AI_MODEL` | Model ID | `mistral-large-4` |
+| `AI_MODEL` | Model ID | `mistral-large-4-0` |
 | `AI_REASONING_EFFORT` | `none` (fast) or `high` (thinking chunks, more tokens) | `none` |
-| `IMAGE_MODEL` | Model of the image agent for `/image` | `mistral-medium-latest` |
-| `WEBSEARCH_MODEL` | Model of the websearch agent for `/websearch` | `mistral-medium-latest` |
-| `AI_SYSTEM_PROMPT` | System prompt for the AI | ... |
+| `IMAGE_MODEL` | Model of the image agent for `/image` | `mistral-medium-3-5` |
+| `WEBSEARCH_MODEL` | Model of the websearch agent for `/websearch` | `mistral-medium-3-5` |
+| `AI_SYSTEM_PROMPT` | System prompt for the AI | … |
 | `PRICE_PER_MIO_INPUT_TOKENS` | USD per 1M input tokens | `0.68` |
 | `PRICE_PER_MIO_OUTPUT_TOKENS` | USD per 1M output tokens | `2.09` |
 | `PROVIDER` | Provider name for the footer | `Mistral AI` |
 | `PROVIDER_PRIVACY` | Privacy policy link | `https://mistral.ai/privacy-policy` |
+| `DASHBOARD_PORT` | Dashboard port | `8080` |
+| `DASHBOARD_HOST` | Bind address (`127.0.0.1` = local only; `0.0.0.0` inside Docker) | `127.0.0.1` |
+| `DASHBOARD_TOKEN` | If set, every API request needs `Authorization: Bearer <token>` | (empty = no protection) |
+| `BIRTHDAY_ROLE_ID` | Role the bot assigns on a member's birthday | (empty = no role) |
+| `AUTO_ROLE_ID` | Role every newly joined member gets | (empty = no role) |
+| `DB_PATH` | SQLite file | `database.db` in the project root |
+
+## Web dashboard
+
+The bot starts a web dashboard at `http://127.0.0.1:8080` (configurable). It shows:
+
+- **Status:** bot tag, avatar, WS ping, presence, uptime (process/bot), memory, Node version, server/member/channel counts
+- **Statistics:** daily message and voice time series from the SQLite DB (`daily_stats`, last 60 days)
+- **Birthdays:** all entries from the `birthdays` table
+- **Send message:** send as the bot to any text channel – channel ID and text (optionally allow `@everyone`/role pings)
+
+For access from outside, put a reverse proxy (e.g. Nginx/Caddy) with HTTPS in front of the
+dashboard and set `DASHBOARD_TOKEN`.
 
 ## Cost calculation
 
@@ -97,48 +135,41 @@ erDiagram
     }
 ```
 
-Single table, upserted every 20 seconds. `voice_seconds` measures **occupancy time, not person-time**: 2 people in one channel for 60 s count as 60 s. Counters reset at local midnight; time already spent in still-occupied channels is credited to the old day first.
+`daily_stats` is upserted every 20 seconds. `voice_seconds` measures **occupancy time, not person-time**: 2 people in one channel for 60 s count as 60 s. Counters reset at local midnight; time already spent in still-occupied channels is credited to the old day first.
+
+## Development
+
+```bash
+npm install
+npm test           # smoke test: loads all commands/events against an in-memory DB
+npm run check      # all checks (currently = npm test)
+```
+
+```
+src/
+  index.js            client, intents, loads commands/events
+  commands/           one slash command per file (ai, birthday, image, ping, poll, websearch)
+  events/             one Discord event per file (guildMemberAdd, interactionCreate, messageCreate, ready, voiceStateUpdate)
+  db.js               single DB handle: run/get/all (node:sqlite, synchronous)
+  activity.js         message/voice tracking + daily_stats persistence
+  birthdays.js        birthday management, role & wishes
+  ai.js               Mistral API helpers (agents, conversations, cost, embeds)
+  dashboard.js        web dashboard server (Express: status/stats/send)
+  loaders.js          auto-loads src/commands and src/events
+public/index.html     dashboard frontend
+scripts/
+  deploy-commands.js  registers all slash commands globally
+tests/smoke.mjs       smoke test
+docs/                 logo
+```
+
+Rules: add a command as a file in `src/commands/` (`data` + `execute`), an event in
+`src/events/` (`name` + `execute`, the client is passed as the last argument). Extend dashboard
+endpoints in `src/dashboard.js`.
+
+Version: `version` in `package.json` (currently `1.3.0-beta`); changes are listed in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
 MIT
-
-## Web-Dashboard
-
-Der Bot startet automatisch ein Web-Dashboard unter `http://127.0.0.1:8080` (konfigurierbar). Es zeigt:
-
-- **Status**: Bot-Tag, Avatar, WS-Ping, Presence, Uptime (Prozess/Bot), Speicher, Node-Version, Server/Mitglieder/Channel-Zahlen
-- **Statistiken**: tägliche Nachrichten- und Voice-Zeitreihen aus der SQLite-DB (`daily_stats`, letzte 60 Tage)
-- **Geburtstage**: alle Einträge aus der `birthdays`-Tabelle
-- **Nachricht senden**: als Bot in jeden Textkanal senden – einfach Channel-ID und Text angeben (optional `@everyone`/Rollen-Pings erlauben)
-
-Konfiguration in `.env`:
-
-| Variable | Beschreibung | Standard |
-|---|---|---|
-| `DASHBOARD_PORT` | Port des Dashboards | `8080` |
-| `DASHBOARD_HOST` | Bindung (`127.0.0.1` = nur lokal; `0.0.0.0` im Docker-Container) | `127.0.0.1` |
-| `DASHBOARD_TOKEN` | Wenn gesetzt, brauchen alle API-Requests `Authorization: Bearer <Token>` | (leer = kein Schutz) |
-| `BIRTHDAY_ROLE_ID` | Rollen-ID, die der Bot am Geburtstag vergibt (leer = keine Rolle) | (leer) |
-| `AUTO_ROLE_ID` | Rollen-ID, die jeder frisch beigetretene Member automatisch bekommt (leer = keine Rolle) | (leer) |
-
-Für den Zugriff von außerhalb einen Reverse-Proxy (z. B. Nginx/Caddy) mit HTTPS vor das Dashboard schalten und `DASHBOARD_TOKEN` setzen.
-
-## Projektstruktur
-
-```
-index.js               Client, Intents, Loader für Commands/Events
-deploy-commands.js     Registriert alle Slash-Commands global
-commands/              Ein Command pro Datei (ai, birthday, image, ping, poll, websearch)
-events/                Ein Discord-Event pro Datei (interactionCreate, messageCreate, ready, voiceStateUpdate)
-src/
-  db.js                Einziger DB-Handle: run/get/all (better-sqlite3, synchron)
-  activity.js          Nachrichten-/Voice-Tracking + daily_stats-Persistenz
-  birthdays.js         Geburtstags-Verwaltung, Rolle & Wünsche
-  ai.js                Mistral-API-Helfer (Agents, Konversationen, Kosten, Embeds)
-  dashboard.js         Web-Dashboard-Server (Express: Status/Stats/Senden)
-  loaders.js           Lädt commands/ und events/ automatisch
-  public/index.html    Dashboard-Frontend
-```
-
-Regeln: neue Commands einfach als Datei in `commands/` ablegen (`data` + `execute`), neue Events in `events/` (`name` + `execute`, Client wird als letzter Parameter übergeben). Dashboard-Endpoints in `src/dashboard.js` erweitern.

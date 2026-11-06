@@ -1,8 +1,8 @@
 const { Client, Collection, GatewayIntentBits, Partials } = require("discord.js");
 require("dotenv").config();
-const { loadFolder } = require("./src/loaders");
-const activity = require("./src/activity");
-const birthdays = require("./src/birthdays");
+const { loadFolder } = require("./loaders");
+const activity = require("./activity");
+const birthdays = require("./birthdays");
 
 const client = new Client({
   intents: [

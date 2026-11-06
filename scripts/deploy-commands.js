@@ -1,6 +1,6 @@
 const { REST, Routes } = require("discord.js");
 require("dotenv").config();
-const { loadFolder } = require("./src/loaders");
+const { loadFolder } = require("../src/loaders");
 
 const commands = [...loadFolder("commands").values()].map((command) => command.data.toJSON());
 const rest = new REST().setToken(process.env.TOKEN);

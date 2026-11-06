@@ -1,5 +1,5 @@
 const { Events } = require("discord.js");
-const { incrementMessages } = require("../src/activity");
+const { incrementMessages } = require("../activity");
 
 module.exports = {
   name: Events.MessageCreate,
